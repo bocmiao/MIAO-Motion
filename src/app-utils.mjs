@@ -1,12 +1,16 @@
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 
 export const DEFAULT_SETTINGS = Object.freeze({
+  activeModelId: '',
   background: 'studio',
   cameraId: '',
   mirror: true,
   onboardingComplete: false,
+  outputAspect: 'auto',
   renderQuality: 'balanced',
   sensitivity: 1,
+  smoothing: 1,
+  viewPreset: 'upper',
 });
 
 export function parseSettings(raw) {
@@ -18,15 +22,27 @@ export function parseSettings(raw) {
     const renderQuality = ['performance', 'balanced', 'quality'].includes(value?.renderQuality)
       ? value.renderQuality
       : DEFAULT_SETTINGS.renderQuality;
+    const outputAspect = ['auto', '16:9', '9:16', '1:1'].includes(value?.outputAspect)
+      ? value.outputAspect
+      : DEFAULT_SETTINGS.outputAspect;
+    const viewPreset = ['head', 'upper', 'full'].includes(value?.viewPreset)
+      ? value.viewPreset
+      : DEFAULT_SETTINGS.viewPreset;
     return {
+      activeModelId: typeof value?.activeModelId === 'string' ? value.activeModelId : '',
       background,
       cameraId: typeof value?.cameraId === 'string' ? value.cameraId : '',
       mirror: value?.mirror !== false,
       onboardingComplete: value?.onboardingComplete === true,
+      outputAspect,
       renderQuality,
       sensitivity: Number.isFinite(value?.sensitivity)
         ? clamp(value.sensitivity, 0.5, 1.5)
         : DEFAULT_SETTINGS.sensitivity,
+      smoothing: Number.isFinite(value?.smoothing)
+        ? clamp(value.smoothing, 0.5, 2)
+        : DEFAULT_SETTINGS.smoothing,
+      viewPreset,
     };
   } catch {
     return { ...DEFAULT_SETTINGS };
@@ -40,25 +56,7 @@ export function validateModelFile(file, maxBytes) {
   return '';
 }
 
-export function cameraConstraints(cameraId = '') {
-  return {
-    audio: false,
-    video: {
-      width: { ideal: 1280 },
-      height: { ideal: 720 },
-      frameRate: { ideal: 30, max: 30 },
-      ...(cameraId ? { deviceId: { exact: cameraId } } : { facingMode: 'user' }),
-    },
-  };
-}
-
-export function cameraErrorMessage(error) {
-  const name = error && typeof error === 'object' && 'name' in error ? error.name : '';
-  if (name === 'NotAllowedError' || name === 'SecurityError') return '没有摄像头权限：请在浏览器地址栏允许后重试';
-  if (name === 'NotFoundError' || name === 'OverconstrainedError') return '没有找到所选摄像头：请重新连接或选择其他设备';
-  if (name === 'NotReadableError' || name === 'AbortError') return '摄像头正被其他程序占用：关闭占用程序后重试';
-  return '摄像头启动失败：请检查设备和权限后重试';
-}
+export { cameraConstraints, cameraErrorMessage, createWithGpuFallback, stopMediaStream } from './capture.mjs';
 
 export function trackingQuality(fps, faceVisible) {
   if (!faceVisible) return { label: '等待人脸', level: 'idle', value: 0 };
@@ -109,12 +107,16 @@ export function estimateModelPerformance(metrics) {
 export function createSettingsProfile(settings) {
   return {
     format: 'miao-motion-settings',
-    version: 1,
+    version: 2,
     settings: {
+      activeModelId: settings.activeModelId,
       background: settings.background,
       mirror: settings.mirror,
+      outputAspect: settings.outputAspect,
       renderQuality: settings.renderQuality,
       sensitivity: settings.sensitivity,
+      smoothing: settings.smoothing,
+      viewPreset: settings.viewPreset,
     },
   };
 }
@@ -122,16 +124,37 @@ export function createSettingsProfile(settings) {
 export function parseSettingsProfile(raw) {
   try {
     const profile = JSON.parse(raw);
-    if (profile?.format !== 'miao-motion-settings' || profile?.version !== 1 || !profile.settings) return null;
+    if (profile?.format !== 'miao-motion-settings' || ![1, 2].includes(profile?.version) || !profile.settings) return null;
     const parsed = parseSettings(JSON.stringify(profile.settings));
     return {
+      activeModelId: parsed.activeModelId,
       background: parsed.background,
       mirror: parsed.mirror,
+      outputAspect: parsed.outputAspect,
       renderQuality: parsed.renderQuality,
       sensitivity: parsed.sensitivity,
+      smoothing: parsed.smoothing,
+      viewPreset: parsed.viewPreset,
     };
   } catch {
     return null;
+  }
+}
+
+export function parseDiagnosticEvents(raw, limit = 80) {
+  try {
+    const events = JSON.parse(raw ?? '[]');
+    if (!Array.isArray(events)) return [];
+    return events
+      .filter((event) => event && typeof event.at === 'string' && typeof event.kind === 'string' && typeof event.message === 'string')
+      .slice(-Math.max(1, limit))
+      .map((event) => ({
+        at: event.at.slice(0, 40),
+        kind: event.kind.slice(0, 80),
+        message: sanitizeDiagnosticMessage(event.message).slice(0, 300),
+      }));
+  } catch {
+    return [];
   }
 }
 

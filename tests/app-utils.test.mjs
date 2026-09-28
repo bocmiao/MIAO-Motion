@@ -6,14 +6,17 @@ import {
   cameraErrorMessage,
   coarseUserAgent,
   createSettingsProfile,
+  createWithGpuFallback,
   estimateModelPerformance,
   modelLoadErrorMessage,
   onboardingState,
+  parseDiagnosticEvents,
   parseSettings,
   parseSettingsProfile,
   renderPixelRatio,
   sanitizeDiagnosticMessage,
   scaleMotion,
+  stopMediaStream,
   trackingQuality,
   validateModelFile,
 } from '../src/app-utils.mjs';
@@ -22,7 +25,7 @@ test('settings parsing uses safe defaults and bounds', () => {
 assert.deepEqual(parseSettings(null), DEFAULT_SETTINGS);
 assert.deepEqual(parseSettings('{broken'), DEFAULT_SETTINGS);
 assert.deepEqual(parseSettings('{"background":"green","cameraId":"cam-2","sensitivity":9}'), {
-  background: 'green', cameraId: 'cam-2', mirror: true, onboardingComplete: false, renderQuality: 'balanced', sensitivity: 1.5,
+  activeModelId: '', background: 'green', cameraId: 'cam-2', mirror: true, onboardingComplete: false, outputAspect: 'auto', renderQuality: 'balanced', sensitivity: 1.5, smoothing: 1, viewPreset: 'upper',
 });
 assert.equal(parseSettings('{"onboardingComplete":true}').onboardingComplete, true);
 assert.equal(parseSettings('{"renderQuality":"quality"}').renderQuality, 'quality');
@@ -37,6 +40,9 @@ assert.equal(validateModelFile({ name: 'AVATAR.VRM', size: 100 }, 100), '');
 
 assert.equal(cameraConstraints('cam-2').video.deviceId.exact, 'cam-2');
 assert.equal(cameraConstraints().video.facingMode, 'user');
+const stopped = [];
+stopMediaStream({ getTracks: () => [{ stop: () => stopped.push('video') }, { stop: () => stopped.push('audio') }] });
+assert.deepEqual(stopped, ['video', 'audio']);
 assert.match(cameraErrorMessage({ name: 'NotAllowedError' }), /权限/);
 assert.match(cameraErrorMessage({ name: 'NotReadableError' }), /占用/);
 assert.equal(trackingQuality(25, true).level, 'good');
@@ -61,10 +67,19 @@ assert.equal(estimateModelPerformance({ fileBytes: 90e6, triangles: 50_000, mate
 assert.equal(estimateModelPerformance({ fileBytes: 20e6, triangles: 250_000, materials: 10, textures: 8, maxTextureSize: 2048, textureBytes: 100e6, geometryBytes: 5e6 }).level, 'heavy');
 });
 
-test('settings profiles, error hints, and diagnostics privacy', () => {
+test('settings profiles, GPU fallback, error hints, and diagnostics privacy', async () => {
 const profile = createSettingsProfile({ ...DEFAULT_SETTINGS, background: 'green', sensitivity: 1.4 });
-assert.deepEqual(parseSettingsProfile(JSON.stringify(profile)), { background: 'green', mirror: true, renderQuality: 'balanced', sensitivity: 1.4 });
+assert.deepEqual(parseSettingsProfile(JSON.stringify(profile)), { activeModelId: '', background: 'green', mirror: true, outputAspect: 'auto', renderQuality: 'balanced', sensitivity: 1.4, smoothing: 1, viewPreset: 'upper' });
+assert.deepEqual(parseSettingsProfile(JSON.stringify({ format: 'miao-motion-settings', version: 1, settings: { background: 'green' } })), { activeModelId: '', background: 'green', mirror: true, outputAspect: 'auto', renderQuality: 'balanced', sensitivity: 1, smoothing: 1, viewPreset: 'upper' });
 assert.equal(parseSettingsProfile('{"format":"other"}'), null);
+const delegates = [];
+const fallback = await createWithGpuFallback(async (options) => {
+  delegates.push(options.baseOptions.delegate);
+  if (options.baseOptions.delegate === 'GPU') throw new Error('GPU unavailable');
+  return 'cpu-detector';
+}, { baseOptions: { modelAssetPath: '/local.task' } });
+assert.equal(fallback, 'cpu-detector');
+assert.deepEqual(delegates, ['GPU', 'CPU']);
 assert.match(modelLoadErrorMessage(new Error('WebGL context lost due to allocation')), /内存或显存/);
 assert.match(modelLoadErrorMessage(new SyntaxError('Unexpected token')), /文件结构/);
 assert.doesNotMatch(sanitizeDiagnosticMessage(new Error('read C:\\Users\\Miao Luo\\avatar.vrm')), /Miao|avatar/);
@@ -76,4 +91,6 @@ assert.equal(sanitizeDiagnosticMessage('read /mnt/c/Users/Miao/avatar.vrm'), 're
 assert.equal(sanitizeDiagnosticMessage('read /Volumes/Private/avatar.vrm'), 'read [local-path-redacted]');
 assert.equal(coarseUserAgent('Mozilla/5.0 Chrome/140.0.0.0 Safari/537.36'), 'Chrome/140');
 assert.equal(coarseUserAgent('secret agent'), 'Unknown browser');
+assert.deepEqual(parseDiagnosticEvents('{broken'), []);
+assert.deepEqual(parseDiagnosticEvents(JSON.stringify([{ at: '2026-01-01', kind: 'error', message: 'C:\\Users\\Miao\\model.vrm' }])), [{ at: '2026-01-01', kind: 'error', message: '[local-path-redacted]' }]);
 });

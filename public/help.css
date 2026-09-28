@@ -1,0 +1,10 @@
+:root { color-scheme: dark; font: 17px/1.7 system-ui, sans-serif; background:#111522; color:#edf2ff }
+body { max-width: 860px; margin:auto; padding:32px 22px 72px }
+h1,h2 { line-height:1.25 }
+h2 { margin-top:2em; color:#b8c8ff }
+.note { padding:14px 18px; border-left:4px solid #7e9cff; background:#1a2032; border-radius:8px }
+li { margin:.45em 0 }
+code { background:#242b40; padding:.12em .35em; border-radius:4px }
+a { color:#9db4ff }
+table { width:100%; border-collapse:collapse }
+th,td { padding:9px; border:1px solid #39425d; text-align:left }

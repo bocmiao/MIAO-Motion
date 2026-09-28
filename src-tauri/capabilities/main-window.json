@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main-window",
+  "description": "主窗口只使用 Tauri 核心默认窗口能力，不开放 shell、文件系统或网络插件命令。",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

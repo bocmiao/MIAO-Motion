@@ -32,7 +32,7 @@
 | P3-20 模型保存内存峰值 | 完成 | IndexedDB 直接保存 File/Blob，不再复制 ArrayBuffer | — |
 | P3-21 第三方许可 | 完成 | 构建脚本从 lockfile 生成运行时许可汇总；Face Landmarker Apache-2.0 单列；许可进入 `dist/licenses` 和便携包 | — |
 | P3-22 安全渠道/DCO | 部分完成 | SECURITY 指向 GitHub 私密安全报告并保留无详情公共兜底；删除未自动执行的 DCO 要求 | 仓库所有者需在 Settings → Security 启用 Private vulnerability reporting |
-| P3-23 IndexedDB 无迁移 | 完成 | schema v2 `models` store、元数据、updatedAt 索引、v1→v2 Blob 迁移；契约测试 | — |
+| P3-23 IndexedDB 无迁移 | 完成并扩展 | schema v3 `models`/`profiles`、元数据、updatedAt、v1→v3 Blob 迁移；多模型、缩略图和配置档；契约/E2E 用例 | 大型真实模型容量待真机 |
 | P3-24 首屏包偏大 | 按报告维持 | 暂不为了数字拆分 three-vrm/Three.js；构建继续记录包体警告，桌面版以实测启动数据复评 | Tauri 首屏数据 |
 | P3-25 缺少 pagehide | 完成 | `beforeunload` 与 `pagehide` 都释放摄像头；契约测试 | — |
 
@@ -45,6 +45,9 @@
 - 打包进应用的离线帮助页。
 - OBS、国内直播软件、腾讯会议通用接入指南。
 - Node-free 便携包流水线与 SHA-256。
+- 多模型库、VRM 许可摘要、命名配置档、平滑/输出比例、开播自检和持久脱敏日志。
+- Tauri 2 最小权限桌面壳、NSIS Windows CI 和草稿 Release 工作流。
+- 项目自产的最小/损坏 VRM 自动化夹具。
 
 ## 本次明确未冒充完成的事项
 
@@ -54,8 +57,8 @@
 2. 镜像默认方向、自然手臂姿势和 LookAt 在至少 5 个合法真实 VRM 上的目视调参。
 3. GitHub 私密漏洞报告开关（需要仓库管理员权限）。
 4. 国内下载镜像、B 站视频、QQ群/Gitee 等运营账号的创建和上传。
-5. 内置示例角色：仓库没有具有明确再分发授权的 VRM，不能随意拿第三方模型充数。
-6. 代码签名、SmartScreen、Tauri 安装包、虚拟摄像头、身体/手部、模型库等后续版本工作；这些不是 P0–P3 缺陷修复，而是审计报告提出的中长期产品路线。
+5. 面向用户的示例角色：仓库内自产最小 VRM 只用于自动化，不是可直播美术角色；仍需原创或明确授权的成品角色。
+6. 代码签名、SmartScreen、自动更新、虚拟摄像头、身体/手部、Spout2 和 OBS 自动配置。
 
 ## 验证命令
 

@@ -1,0 +1,11 @@
+export type StoredModel = { id: string; name: string; type: string; data: Blob; size: number; updatedAt: number; thumbnail?: string };
+export type StoredProfile = { id: string; name: string; modelId: string; settings: ReturnType<typeof import('./app-utils.mjs').createSettingsProfile>['settings']; updatedAt: number };
+export function openAppDatabase(): Promise<IDBDatabase>;
+export function listStoredModels(): Promise<StoredModel[]>;
+export function getStoredModel(id: string): Promise<StoredModel | undefined>;
+export function putStoredModel(file: File, id?: string): Promise<StoredModel>;
+export function updateStoredModel(id: string, changes: Partial<Pick<StoredModel, 'name' | 'thumbnail'>>): Promise<void>;
+export function deleteStoredModel(id: string): Promise<void>;
+export function listStoredProfiles(): Promise<StoredProfile[]>;
+export function putStoredProfile(profile: StoredProfile): Promise<void>;
+export function deleteStoredProfile(id: string): Promise<void>;

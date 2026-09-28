@@ -14,13 +14,12 @@ import { damping, lerpMotion, solveExpressions } from './motion.mjs';
 import { collectModelMetrics, gazeAngles, idleBlink, mirrorMotion, relativeHeadRotation } from './avatar-utils.mjs';
 import {
   DEFAULT_SETTINGS,
-  cameraConstraints,
-  cameraErrorMessage,
   coarseUserAgent,
   createSettingsProfile,
   estimateModelPerformance,
   modelLoadErrorMessage,
   onboardingState,
+  parseDiagnosticEvents,
   parseSettings,
   parseSettingsProfile,
   renderPixelRatio,
@@ -32,11 +31,26 @@ import {
   type Background,
   type ModelMetrics,
 } from './app-utils.mjs';
+import { cameraConstraints, cameraErrorMessage, createWithGpuFallback, stopMediaStream } from './capture.mjs';
+import { broadcastBackground, obsBrowserSourceUrl, restoreBroadcastBackground } from './broadcast.mjs';
+import {
+  deleteStoredModel,
+  deleteStoredProfile,
+  getStoredModel,
+  listStoredModels,
+  listStoredProfiles,
+  putStoredModel,
+  putStoredProfile,
+  updateStoredModel,
+  type StoredModel,
+  type StoredProfile,
+} from './storage.mjs';
 
 const WASM_URL = new URL('./mediapipe/', document.baseURI).href;
 const MODEL_URL = new URL('./mediapipe/face_landmarker.task', document.baseURI).href;
 const MAX_MODEL_SIZE = 200 * 1024 * 1024;
 const SETTINGS_KEY = 'miao-motion-settings-v1';
+const DIAGNOSTICS_KEY = 'miao-motion-diagnostics-v1';
 const EMPTY_MOTION = {
   blinkLeft: 0,
   blinkRight: 0,
@@ -50,8 +64,6 @@ const EMPTY_MOTION = {
 };
 
 type Motion = typeof EMPTY_MOTION;
-type StoredModel = { id: string; name: string; type: string; data: Blob; size: number; updatedAt: number };
-
 const required = <T extends Element>(selector: string): T => {
   const element = document.querySelector<T>(selector);
   if (!element) throw new Error(`页面缺少必要元素：${selector}`);
@@ -65,6 +77,7 @@ const fileInput = required<HTMLInputElement>('#model-file');
 const importButton = required<HTMLButtonElement>('#import-model');
 const modelName = required<HTMLElement>('#model-name');
 const modelStatus = required<HTMLElement>('#model-status');
+const retry3dButton = required<HTMLButtonElement>('#retry-3d');
 const cameraButton = required<HTMLButtonElement>('#camera-toggle');
 const cameraStatus = required<HTMLElement>('#camera-status');
 const cameraPreview = required<HTMLVideoElement>('#camera-preview');
@@ -76,18 +89,37 @@ const calibrateButton = required<HTMLButtonElement>('#calibrate');
 const cameraSelect = required<HTMLSelectElement>('#camera-select');
 const sensitivityInput = required<HTMLInputElement>('#sensitivity');
 const sensitivityValue = required<HTMLOutputElement>('#sensitivity-value');
+const smoothingInput = required<HTMLInputElement>('#smoothing');
+const smoothingValue = required<HTMLOutputElement>('#smoothing-value');
 const renderQualitySelect = required<HTMLSelectElement>('#render-quality');
+const outputAspectSelect = required<HTMLSelectElement>('#output-aspect');
 const mirrorInput = required<HTMLInputElement>('#mirror-motion');
+const modelLibrary = required<HTMLSelectElement>('#model-library');
+const modelThumbnail = required<HTMLImageElement>('#model-thumbnail');
+const renameModelButton = required<HTMLButtonElement>('#rename-model');
+const deleteLibraryModelButton = required<HTMLButtonElement>('#delete-library-model');
+const profileNameInput = required<HTMLInputElement>('#profile-name');
+const profileLibrary = required<HTMLSelectElement>('#profile-library');
+const saveProfileButton = required<HTMLButtonElement>('#save-profile');
+const applyProfileButton = required<HTMLButtonElement>('#apply-profile');
+const deleteProfileButton = required<HTMLButtonElement>('#delete-profile');
 const backgroundButton = required<HTMLButtonElement>('#background-toggle');
 const broadcastButton = required<HTMLButtonElement>('#broadcast-toggle');
 const obsButton = required<HTMLButtonElement>('#copy-obs-url');
 const diagnostics = required<HTMLElement>('#diagnostics');
 const doctorSummary = required<HTMLElement>('#doctor-summary');
+const runPreflightButton = required<HTMLButtonElement>('#run-preflight');
+const preflightResults = required<HTMLUListElement>('#preflight-results');
 const exportSettingsButton = required<HTMLButtonElement>('#export-settings');
 const importSettingsButton = required<HTMLButtonElement>('#import-settings');
 const resetSettingsButton = required<HTMLButtonElement>('#reset-settings');
 const removeModelButton = required<HTMLButtonElement>('#remove-model');
 const exportDiagnosticsButton = required<HTMLButtonElement>('#export-diagnostics');
+const viewDiagnosticsButton = required<HTMLButtonElement>('#view-diagnostics');
+const clearDiagnosticsButton = required<HTMLButtonElement>('#clear-diagnostics');
+const diagnosticsDialog = required<HTMLDialogElement>('#diagnostics-dialog');
+const diagnosticsLog = required<HTMLOListElement>('#diagnostics-log');
+const closeDiagnosticsButton = required<HTMLButtonElement>('#close-diagnostics');
 const settingsFileInput = required<HTMLInputElement>('#settings-file');
 const openGuideButton = required<HTMLButtonElement>('#open-guide');
 const onboardingDialog = required<HTMLDialogElement>('#onboarding-dialog');
@@ -100,7 +132,7 @@ const onboardingNextButton = required<HTMLButtonElement>('#onboarding-next');
 const onboardingImportButton = required<HTMLButtonElement>('#onboarding-import');
 const onboardingCameraButton = required<HTMLButtonElement>('#onboarding-camera');
 const onboardingCalibrateButton = required<HTMLButtonElement>('#onboarding-calibrate');
-const onboardingObsButton = required<HTMLButtonElement>('#onboarding-copy-obs');
+const onboardingBroadcastButton = required<HTMLButtonElement>('#onboarding-enter-broadcast');
 const onboardingModelState = required<HTMLElement>('#onboarding-model-state');
 const onboardingCameraState = required<HTMLElement>('#onboarding-camera-state');
 const onboardingFinishState = required<HTMLElement>('#onboarding-finish-state');
@@ -129,11 +161,13 @@ let background: Background = requestedBackground === 'green' || requestedBackgro
   : settings.background;
 
 let renderer: THREE.WebGLRenderer;
+retry3dButton.addEventListener('click', () => location.reload());
 try {
   renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, powerPreference: 'high-performance' });
 } catch (error) {
   modelStatus.textContent = '无法启动 3D 画面：请更新显卡驱动并在浏览器中启用硬件加速';
   modelStatus.dataset.kind = 'error';
+  retry3dButton.hidden = false;
   throw error;
 }
 renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -181,9 +215,16 @@ let toastTimer = 0;
 let onboardingStep = 0;
 let modelCanAnimate = false;
 let currentModelMetrics: ModelMetrics | null = null;
+let currentModelMeta: Record<string, unknown> | null = null;
 let cameraStarting = false;
 let loadGeneration = 0;
-const diagnosticEvents: { at: string; kind: string; message: string }[] = [];
+let diagnosticEvents = (() => {
+  try { return parseDiagnosticEvents(localStorage.getItem(DIAGNOSTICS_KEY)); } catch { return []; }
+})();
+let currentModelId = settings.activeModelId;
+let storedModels: StoredModel[] = [];
+let storedProfiles: StoredProfile[] = [];
+let thumbnailPendingId = '';
 const clock = new THREE.Clock();
 const faceMatrix = new THREE.Matrix4();
 const faceQuaternion = new THREE.Quaternion();
@@ -198,6 +239,7 @@ const setModelStatus = (message: string, kind: 'normal' | 'error' = 'normal') =>
 const addDiagnosticEvent = (kind: string, value: unknown) => {
   diagnosticEvents.push({ at: new Date().toISOString(), kind, message: sanitizeDiagnosticMessage(value).slice(0, 300) });
   if (diagnosticEvents.length > 80) diagnosticEvents.shift();
+  try { localStorage.setItem(DIAGNOSTICS_KEY, JSON.stringify(diagnosticEvents)); } catch { /* Private contexts may block storage. */ }
 };
 
 const downloadJson = (name: string, value: unknown) => {
@@ -257,8 +299,7 @@ const updateOnboarding = () => {
   onboardingPanels.forEach((panel) => { panel.hidden = Number(panel.dataset.onboardingPanel) !== onboardingStep; });
   onboardingProgress.textContent = `第 ${state.progress} 步`;
   onboardingProgressbar.setAttribute('aria-valuenow', String(onboardingStep + 1));
-  const fill = onboardingProgressbar.firstElementChild as HTMLElement | null;
-  if (fill) fill.style.width = `${(onboardingStep + 1) * 25}%`;
+  onboardingProgressbar.dataset.step = String(onboardingStep + 1);
   onboardingBackButton.disabled = onboardingStep === 0;
   onboardingNextButton.disabled = !state.canContinue;
   onboardingNextButton.textContent = state.nextLabel;
@@ -269,7 +310,7 @@ const updateOnboarding = () => {
   onboardingCameraButton.textContent = cameraStarting ? '正在开启…' : cameraStream ? '关闭摄像头' : '开启摄像头';
   onboardingCameraButton.disabled = cameraStarting;
   onboardingCalibrateButton.disabled = !modelCanAnimate || !cameraStream;
-  onboardingObsButton.disabled = !modelCanAnimate;
+  onboardingBroadcastButton.disabled = !modelCanAnimate;
   updateBroadcastStatus();
 };
 
@@ -319,70 +360,46 @@ const frameModel = (object: THREE.Object3D, preset: 'head' | 'upper' | 'full' = 
   controls.update();
 };
 
-const openDatabase = () => new Promise<IDBDatabase>((resolve, reject) => {
-  const request = indexedDB.open('miao-motion', 2);
-  request.onupgradeneeded = (event) => {
-    const db = request.result;
-    const transaction = request.transaction;
-    if (!db.objectStoreNames.contains('assets')) db.createObjectStore('assets');
-    if (!db.objectStoreNames.contains('models')) {
-      const models = db.createObjectStore('models', { keyPath: 'id' });
-      models.createIndex('updatedAt', 'updatedAt');
-      if ((event.oldVersion ?? 0) === 1 && transaction) {
-        const legacy = transaction.objectStore('assets').get('current-vrm');
-        legacy.onsuccess = () => {
-          const value = legacy.result as { name?: string; type?: string; data?: ArrayBuffer | Blob } | undefined;
-          if (!value?.data) return;
-          const data = value.data instanceof Blob ? value.data : new Blob([value.data], { type: value.type });
-          models.put({ id: 'current', name: value.name ?? 'avatar.vrm', type: value.type ?? 'model/vrm', data, size: data.size, updatedAt: Date.now() });
-        };
-      }
-    }
-  };
-  request.onsuccess = () => resolve(request.result);
-  request.onerror = () => reject(request.error);
-});
+const refreshModelLibrary = async () => {
+  storedModels = await listStoredModels();
+  modelLibrary.replaceChildren(...(storedModels.length
+    ? storedModels.map((model) => new Option(`${model.name.replace(/\.vrm$/i, '')} · ${(model.size / 1024 / 1024).toFixed(1)} MB`, model.id))
+    : [new Option('尚无已保存角色', '')]));
+  const active = storedModels.find((model) => model.id === currentModelId) ?? storedModels[0];
+  modelLibrary.value = active?.id ?? '';
+  renameModelButton.disabled = !active;
+  deleteLibraryModelButton.disabled = !active;
+  modelThumbnail.hidden = !active?.thumbnail;
+  if (active?.thumbnail) modelThumbnail.src = active.thumbnail;
+};
 
-const saveModel = async (file: File) => {
-  const db = await openDatabase();
-  const value: StoredModel = { id: 'current', name: file.name, type: file.type, data: file, size: file.size, updatedAt: Date.now() };
-  await new Promise<void>((resolve, reject) => {
-    const transaction = db.transaction('models', 'readwrite');
-    transaction.objectStore('models').put(value);
-    transaction.oncomplete = () => resolve();
-    transaction.onerror = () => reject(transaction.error);
-  });
-  db.close();
+const refreshProfileLibrary = async () => {
+  storedProfiles = await listStoredProfiles();
+  profileLibrary.replaceChildren(...(storedProfiles.length
+    ? storedProfiles.map((profile) => new Option(profile.name, profile.id))
+    : [new Option('尚无配置档', '')]));
+  applyProfileButton.disabled = storedProfiles.length === 0;
+  deleteProfileButton.disabled = storedProfiles.length === 0;
+};
+
+const loadStoredModel = async (id: string, restored = false) => {
+  const stored = await getStoredModel(id);
+  if (!stored) return false;
+  const loaded = await loadVrm(new File([stored.data], stored.name, { type: stored.type }), false, stored.id);
+  if (loaded && restored) showToast('已恢复上次使用的角色和设置');
+  return loaded;
 };
 
 const restoreModel = async () => {
   try {
-    const db = await openDatabase();
-    const stored = await new Promise<StoredModel | undefined>((resolve, reject) => {
-      const request = db.transaction('models').objectStore('models').get('current');
-      request.onsuccess = () => resolve(request.result as StoredModel | undefined);
-      request.onerror = () => reject(request.error);
-    });
-    db.close();
-    if (stored) {
-      const restored = await loadVrm(new File([stored.data], stored.name, { type: stored.type }), false);
-      if (restored) showToast('已恢复上次使用的角色和设置');
-    }
+    await refreshModelLibrary();
+    await refreshProfileLibrary();
+    const candidate = storedModels.find((model) => model.id === settings.activeModelId) ?? storedModels[0];
+    if (candidate) await loadStoredModel(candidate.id, true);
   } catch (error) {
     console.warn('无法恢复上次模型', error);
     addDiagnosticEvent('model-restore-error', error);
   }
-};
-
-const deleteStoredModel = async () => {
-  const db = await openDatabase();
-  await new Promise<void>((resolve, reject) => {
-    const transaction = db.transaction('models', 'readwrite');
-    transaction.objectStore('models').delete('current');
-    transaction.oncomplete = () => resolve();
-    transaction.onerror = () => reject(transaction.error);
-  });
-  db.close();
 };
 
 const inspectModel = (vrm: VRM, fileBytes: number) => {
@@ -395,12 +412,22 @@ const inspectModel = (vrm: VRM, fileBytes: number) => {
     ? ((vrm.lookAt.applier.constructor as { type?: string }).type ?? 'unknown')
     : expressions?.getExpression(VRMExpressionPresetName.LookLeft) ? 'expression-fallback' : 'none';
   const hasLook = lookAtType !== 'none';
-  const humanoidBones = [
-    VRMHumanBoneName.Hips, VRMHumanBoneName.Spine, VRMHumanBoneName.Chest, VRMHumanBoneName.Neck,
-    VRMHumanBoneName.Head, VRMHumanBoneName.LeftUpperArm, VRMHumanBoneName.RightUpperArm,
-    VRMHumanBoneName.LeftLowerArm, VRMHumanBoneName.RightLowerArm,
+  const humanoidBones = Object.values(VRMHumanBoneName);
+  const requiredBones = [
+    VRMHumanBoneName.Hips, VRMHumanBoneName.Spine, VRMHumanBoneName.Head,
+    VRMHumanBoneName.LeftUpperLeg, VRMHumanBoneName.LeftLowerLeg, VRMHumanBoneName.LeftFoot,
+    VRMHumanBoneName.RightUpperLeg, VRMHumanBoneName.RightLowerLeg, VRMHumanBoneName.RightFoot,
+    VRMHumanBoneName.LeftUpperArm, VRMHumanBoneName.LeftLowerArm, VRMHumanBoneName.LeftHand,
+    VRMHumanBoneName.RightUpperArm, VRMHumanBoneName.RightLowerArm, VRMHumanBoneName.RightHand,
   ];
-  const availableBones = humanoidBones.filter((name) => vrm.humanoid.getNormalizedBoneNode(name)).length;
+  const availableBones = humanoidBones.filter((name) => vrm.humanoid.getNormalizedBoneNode(name));
+  const missingRequired = requiredBones.filter((name) => !vrm.humanoid.getNormalizedBoneNode(name));
+  const meta = vrm.meta;
+  const author = meta.metaVersion === '1' ? meta.authors.join('、') : meta.author;
+  const license = meta.metaVersion === '1'
+    ? `使用者 ${meta.avatarPermission ?? '未填写'} · 商用 ${meta.commercialUsage ?? '未填写'} · 署名 ${meta.creditNotation ?? '未填写'} · 再分发 ${meta.allowRedistribution == null ? '未填写' : meta.allowRedistribution ? '允许' : '不允许'}`
+    : `使用者 ${meta.allowedUserName ?? '未填写'} · 商用 ${meta.commercialUssageName ?? '未填写'} · 许可 ${meta.licenseName ?? '未填写'}`;
+  currentModelMeta = { vrmVersion: meta.metaVersion, author: author ?? '未填写', license };
   const metrics = collectModelMetrics(vrm.scene, fileBytes) as ModelMetrics;
   const performance = estimateModelPerformance(metrics);
   currentModelMetrics = metrics;
@@ -409,7 +436,9 @@ const inspectModel = (vrm: VRM, fileBytes: number) => {
     ['眨眼表情', hasBlink ? 'ok' : 'warn', hasBlink ? '眨眼可用' : '提醒：头部和嘴型仍可使用'],
     ['嘴型表情', hasMouth ? 'ok' : 'warn', hasMouth ? '张嘴可用' : '提醒：头部和眨眼仍可使用'],
     ['视线控制', hasLook ? 'ok' : 'warn', hasLook ? `眼神可用 · ${lookAtType === 'bone' ? '骨骼型' : lookAtType.startsWith('expression') ? '表情型' : '类型未知'}` : '提醒：眼睛不会跟随视线'],
-    ['Humanoid 骨骼', availableBones === humanoidBones.length ? 'ok' : 'warn', `${availableBones}/${humanoidBones.length} 个脸部/自然站姿关键骨骼`],
+    ['Humanoid 必需骨骼', missingRequired.length === 0 ? 'ok' : 'warn', missingRequired.length === 0 ? `15/15 完整；全部骨骼 ${availableBones.length}/${humanoidBones.length}` : `缺 ${missingRequired.join('、')}；回到 VRoid/Blender 补全映射后重新导出`],
+    ['模型作者', author ? 'ok' : 'warn', author ? `${author} · VRM ${meta.metaVersion}.x` : `未填写作者 · VRM ${meta.metaVersion}.x；直播前向模型来源方确认授权`],
+    ['许可摘要', meta ? 'ok' : 'warn', `${license}；程序只展示模型声明，不替你判断授权`],
     ['三角面', metrics.triangles > 200_000 ? 'error' : metrics.triangles > 100_000 ? 'warn' : 'ok', `${metrics.triangles.toLocaleString('zh-CN')} 个三角面`],
     ['材质', metrics.materials > 60 ? 'error' : metrics.materials > 30 ? 'warn' : 'ok', `${metrics.materials} 个材质`],
     ['贴图', metrics.maxTextureSize > 4096 ? 'error' : metrics.maxTextureSize > 2048 ? 'warn' : 'ok', `${metrics.textures} 张 · 最大 ${metrics.maxTextureSize || '未知'} px`],
@@ -445,7 +474,7 @@ const applyNaturalPose = (vrm: VRM) => {
   rotate(VRMHumanBoneName.RightLowerArm, 8);
 };
 
-const loadVrm = async (file: File, persist = true) => {
+const loadVrm = async (file: File, persist = true, storedId = '') => {
   const validationError = validateModelFile(file, MAX_MODEL_SIZE);
   if (validationError) {
     setModelStatus(validationError, 'error');
@@ -476,7 +505,7 @@ const loadVrm = async (file: File, persist = true) => {
 
     currentVrm = vrm;
     scene.add(vrm.scene);
-    frameModel(vrm.scene);
+    frameModel(vrm.scene, settings.viewPreset);
     headRest.copy(vrm.humanoid.getNormalizedBoneNode(VRMHumanBoneName.Head)?.quaternion ?? new THREE.Quaternion());
     chestRest.copy(vrm.humanoid.getNormalizedBoneNode(VRMHumanBoneName.Chest)?.quaternion ?? new THREE.Quaternion());
     hasNeutral = false;
@@ -491,10 +520,20 @@ const loadVrm = async (file: File, persist = true) => {
     removeModelButton.disabled = false;
     updateOnboarding();
     if (document.body.classList.contains('broadcast-mode') && modelCanAnimate && !cameraStream) void startCamera();
-    if (persist) void saveModel(file).catch((error) => {
+    try {
+      const saved = persist ? await putStoredModel(file) : storedId ? await getStoredModel(storedId) : undefined;
+      currentModelId = saved?.id ?? storedId;
+      if (currentModelId) {
+        settings = { ...settings, activeModelId: currentModelId };
+        saveSettings();
+        thumbnailPendingId = currentModelId;
+      }
+      await refreshModelLibrary();
+    } catch (error) {
       console.warn('无法保存模型', error);
+      addDiagnosticEvent('model-save-error', error);
       showToast('角色已加载，但浏览器空间不足，刷新后需要重新导入');
-    });
+    }
     return true;
   } catch (error) {
     if (generation !== loadGeneration) return false;
@@ -518,7 +557,7 @@ const createDetector = async () => {
   const { FaceLandmarker, FilesetResolver } = await import('@mediapipe/tasks-vision');
   const vision = await FilesetResolver.forVisionTasks(WASM_URL);
   const options = {
-    baseOptions: { modelAssetPath: MODEL_URL, delegate: 'GPU' as const },
+    baseOptions: { modelAssetPath: MODEL_URL },
     runningMode: 'VIDEO' as const,
     numFaces: 1,
     minFaceDetectionConfidence: 0.5,
@@ -527,16 +566,14 @@ const createDetector = async () => {
     outputFaceBlendshapes: true,
     outputFacialTransformationMatrixes: true,
   };
-  try {
-    return await FaceLandmarker.createFromOptions(vision, options);
-  } catch (gpuError) {
+  return createWithGpuFallback(
+    (detectorOptions) => FaceLandmarker.createFromOptions(vision, detectorOptions),
+    options,
+    (gpuError) => {
     console.warn('GPU 初始化失败，改用 CPU', gpuError);
     addDiagnosticEvent('detector-gpu-fallback', gpuError);
-    return FaceLandmarker.createFromOptions(vision, {
-      ...options,
-      baseOptions: { modelAssetPath: MODEL_URL, delegate: 'CPU' },
-    });
-  }
+    },
+  );
 };
 
 const ensureDetector = async () => {
@@ -555,7 +592,7 @@ const ensureDetector = async () => {
 };
 
 const stopCamera = () => {
-  cameraStream?.getTracks().forEach((track) => track.stop());
+  stopMediaStream(cameraStream);
   cameraStream = null;
   cameraPreview.srcObject = null;
   cameraPreview.hidden = true;
@@ -607,7 +644,7 @@ const startCamera = async () => {
   } catch (error) {
     console.error(error);
     addDiagnosticEvent('camera-start-error', error);
-    stream?.getTracks().forEach((track) => track.stop());
+    stopMediaStream(stream);
     stopCamera();
     if (stream && !detectorReady) {
       cameraStatus.textContent = '摄像头可用，但动捕引擎未能加载';
@@ -663,7 +700,7 @@ const setExpression = (name: string, value: number) => {
 
 const applyMotion = (delta: number) => {
   if (!currentVrm || !modelCanAnimate) return;
-  const alpha = damping(delta);
+  const alpha = damping(delta, 18 / settings.smoothing);
   currentMotion = lerpMotion(currentMotion, targetMotion, alpha) as Motion;
 
   const manager = currentVrm.expressionManager;
@@ -729,22 +766,32 @@ const applySettingsToControls = (applySavedBackground = true) => {
   if (applySavedBackground) background = settings.background;
   sensitivityInput.value = String(settings.sensitivity);
   sensitivityValue.value = `${Math.round(settings.sensitivity * 100)}%`;
+  smoothingInput.value = String(settings.smoothing);
+  smoothingValue.value = settings.smoothing < 0.9 ? '灵敏' : settings.smoothing > 1.1 ? '稳定' : '标准';
   renderQualitySelect.value = settings.renderQuality;
+  outputAspectSelect.value = settings.outputAspect;
   mirrorInput.checked = settings.mirror;
   cameraSelect.value = settings.cameraId;
   renderer.setPixelRatio(renderPixelRatio(settings.renderQuality, window.devicePixelRatio));
   applyBackground();
+  stage.dataset.aspect = settings.outputAspect;
+  viewPresetButtons.forEach((button) => button.setAttribute('aria-pressed', String(button.dataset.view === settings.viewPreset)));
+  if (currentVrm) frameModel(currentVrm.scene, settings.viewPreset);
   resize();
 };
 
-const removeCurrentModel = async () => {
-  await deleteStoredModel();
+const removeCurrentModel = async (deleteRecord = true) => {
+  if (deleteRecord && currentModelId) await deleteStoredModel(currentModelId);
   if (currentVrm) {
     scene.remove(currentVrm.scene);
     VRMUtils.deepDispose(currentVrm.scene);
   }
   currentVrm = null;
+  currentModelId = '';
+  settings = { ...settings, activeModelId: '' };
+  saveSettings();
   currentModelMetrics = null;
+  currentModelMeta = null;
   modelCanAnimate = false;
   currentMotion = { ...EMPTY_MOTION };
   targetMotion = { ...EMPTY_MOTION };
@@ -758,6 +805,7 @@ const removeCurrentModel = async () => {
   broadcastButton.disabled = true;
   obsButton.disabled = true;
   removeModelButton.disabled = true;
+  await refreshModelLibrary();
   updateOnboarding();
 };
 
@@ -781,7 +829,7 @@ const exportDiagnosticReport = () => {
     environment: { browser: coarseUserAgent(navigator.userAgent), language: navigator.language, online: navigator.onLine },
     graphics,
     settings: createSettingsProfile(settings).settings,
-    model: currentModelMetrics,
+    model: { metrics: currentModelMetrics, metadataSummary: currentModelMeta },
     camera: trackSettings ? { active: true, width: trackSettings.width, height: trackSettings.height, frameRate: trackSettings.frameRate } : { active: false },
     tracking: { status: trackingStatus.textContent, faceVisible },
     recentEvents: diagnosticEvents,
@@ -789,15 +837,51 @@ const exportDiagnosticReport = () => {
   showToast('诊断报告已下载，可在反馈问题时附上');
 };
 
+const runPreflight = async () => {
+  runPreflightButton.disabled = true;
+  runPreflightButton.textContent = '检查中…';
+  const results: { level: 'ok' | 'warn' | 'error'; text: string }[] = [];
+  const localRuntime = location.protocol === 'https:' || ['127.0.0.1', 'localhost', 'tauri.localhost'].includes(location.hostname);
+  results.push({ level: localRuntime ? 'ok' : 'error', text: localRuntime ? '运行环境允许摄像头权限' : '当前地址不是安全/本地环境，摄像头可能不可用' });
+  results.push({ level: renderer.getContext().isContextLost() ? 'error' : 'ok', text: renderer.getContext().isContextLost() ? '3D 画面已丢失，请重新启动 3D' : '3D 画面正常' });
+  results.push({ level: modelCanAnimate ? 'ok' : 'error', text: modelCanAnimate ? `角色可用：${modelName.textContent}` : '没有可动的角色' });
+  results.push({ level: cameraStream ? 'ok' : 'warn', text: cameraStream ? '摄像头已开启' : '摄像头未开启' });
+  results.push({ level: faceVisible ? 'ok' : 'warn', text: faceVisible ? `已检测到人脸：${trackingStatus.textContent}` : '尚未检测到人脸，请正对镜头并校准' });
+  try {
+    const response = await fetch(MODEL_URL, { method: 'HEAD', cache: 'no-store' });
+    results.push({ level: response.ok ? 'ok' : 'error', text: response.ok ? '离线动捕模型资源完整' : `动捕模型资源返回 HTTP ${response.status}` });
+  } catch (error) {
+    addDiagnosticEvent('preflight-assets-error', error);
+    results.push({ level: 'error', text: '无法读取本地动捕资源，请重新解压或安装' });
+  }
+  try {
+    const estimate = await navigator.storage?.estimate();
+    const free = estimate?.quota && estimate.usage != null ? (estimate.quota - estimate.usage) / 1024 / 1024 : 0;
+    results.push({ level: free > 250 || !estimate ? 'ok' : 'warn', text: estimate ? `本地可用空间约 ${Math.max(0, Math.round(free))} MB` : '浏览器未提供空间估算；角色库仍可使用' });
+  } catch (error) {
+    addDiagnosticEvent('preflight-storage-error', error);
+    results.push({ level: 'warn', text: '无法估算本地空间，请避免一次保存过多大型角色' });
+  }
+  results.push({ level: background === 'green' ? 'ok' : 'warn', text: background === 'green' ? `输出已设为绿幕 · ${settings.outputAspect}` : `当前背景为${background === 'transparent' ? '网页透明' : '影棚'}；窗口捕获建议改成绿幕` });
+  preflightResults.replaceChildren(...results.map((result) => {
+    const item = document.createElement('li');
+    item.className = result.level;
+    item.textContent = `${result.level === 'ok' ? '通过' : result.level === 'warn' ? '提醒' : '处理'}：${result.text}`;
+    return item;
+  }));
+  addDiagnosticEvent('preflight-finished', results.map((result) => `${result.level}:${result.text}`).join(' | '));
+  runPreflightButton.disabled = false;
+  runPreflightButton.textContent = '重新检查';
+};
+
 let backgroundBeforeBroadcast: Background | null = null;
 const enterBroadcast = () => {
   document.body.classList.add('broadcast-mode');
   cameraPreview.hidden = true;
   broadcastButton.textContent = '退出直播画面';
-  if (background === 'studio') {
-    backgroundBeforeBroadcast = background;
-    background = 'transparent';
-  }
+  const broadcast = broadcastBackground(background);
+  background = broadcast.background;
+  backgroundBeforeBroadcast = broadcast.previous;
   applyBackground();
   updateBroadcastStatus();
 };
@@ -806,16 +890,14 @@ const exitBroadcast = () => {
   document.body.classList.remove('broadcast-mode');
   cameraPreview.hidden = !cameraStream;
   broadcastButton.textContent = '进入直播画面';
-  if (backgroundBeforeBroadcast) {
-    background = backgroundBeforeBroadcast;
-    backgroundBeforeBroadcast = null;
-    applyBackground();
-  }
+  background = restoreBroadcastBackground(background, backgroundBeforeBroadcast);
+  backgroundBeforeBroadcast = null;
+  applyBackground();
   updateBroadcastStatus();
 };
 
 const copyObsUrl = async () => {
-  const url = `${location.origin}${location.pathname}?broadcast=1&background=transparent`;
+  const url = obsBrowserSourceUrl(location.origin, location.pathname);
   try {
     await navigator.clipboard.writeText(url);
     onboardingFinishState.textContent = 'OBS 地址已复制。现在到 OBS 添加“浏览器”来源并粘贴。';
@@ -848,6 +930,11 @@ sensitivityInput.addEventListener('input', () => {
   sensitivityValue.value = `${Math.round(settings.sensitivity * 100)}%`;
   saveSettings();
 });
+smoothingInput.addEventListener('input', () => {
+  settings = { ...settings, smoothing: Number(smoothingInput.value) };
+  smoothingValue.value = settings.smoothing < 0.9 ? '灵敏' : settings.smoothing > 1.1 ? '稳定' : '标准';
+  saveSettings();
+});
 renderQualitySelect.addEventListener('change', () => {
   settings = { ...settings, renderQuality: renderQualitySelect.value as AppSettings['renderQuality'] };
   renderer.setPixelRatio(renderPixelRatio(settings.renderQuality, window.devicePixelRatio));
@@ -866,8 +953,103 @@ viewPresetButtons.forEach((button) => button.addEventListener('click', () => {
     return;
   }
   const preset = button.dataset.view;
-  if (preset === 'head' || preset === 'upper' || preset === 'full') frameModel(currentVrm.scene, preset);
+  if (preset === 'head' || preset === 'upper' || preset === 'full') {
+    settings = { ...settings, viewPreset: preset };
+    saveSettings();
+    frameModel(currentVrm.scene, preset);
+    viewPresetButtons.forEach((item) => item.setAttribute('aria-pressed', String(item === button)));
+  }
 }));
+outputAspectSelect.addEventListener('change', () => {
+  settings = { ...settings, outputAspect: outputAspectSelect.value as AppSettings['outputAspect'] };
+  stage.dataset.aspect = settings.outputAspect;
+  saveSettings();
+  resize();
+});
+modelLibrary.addEventListener('change', () => {
+  if (modelLibrary.value && modelLibrary.value !== currentModelId) void loadStoredModel(modelLibrary.value);
+  const selected = storedModels.find((model) => model.id === modelLibrary.value);
+  modelThumbnail.hidden = !selected?.thumbnail;
+  if (selected?.thumbnail) modelThumbnail.src = selected.thumbnail;
+});
+renameModelButton.addEventListener('click', () => {
+  const selected = storedModels.find((model) => model.id === modelLibrary.value);
+  if (!selected) return;
+  const name = window.prompt('给角色起一个名称', selected.name.replace(/\.vrm$/i, ''))?.trim();
+  if (!name) return;
+  const fileName = `${name.slice(0, 80)}.vrm`;
+  void updateStoredModel(selected.id, { name: fileName }).then(async () => {
+    if (selected.id === currentModelId) modelName.textContent = name.slice(0, 80);
+    await refreshModelLibrary();
+    modelLibrary.value = selected.id;
+    showToast('角色已重命名');
+  }).catch((error) => {
+    addDiagnosticEvent('model-rename-error', error);
+    showToast('重命名失败，请稍后重试');
+  });
+});
+deleteLibraryModelButton.addEventListener('click', () => {
+  const id = modelLibrary.value;
+  if (!id || !window.confirm('删除这个浏览器中保存的角色副本？原始 VRM 文件不会删除。')) return;
+  const active = id === currentModelId;
+  void deleteStoredModel(id).then(async () => {
+    if (active) await removeCurrentModel(false);
+    await refreshModelLibrary();
+    const next = storedModels[0];
+    if (active && next) await loadStoredModel(next.id);
+    showToast('角色副本已删除');
+  }).catch((error) => {
+    addDiagnosticEvent('model-delete-error', error);
+    showToast('删除失败，请稍后重试');
+  });
+});
+saveProfileButton.addEventListener('click', () => {
+  const name = profileNameInput.value.trim();
+  if (!name) {
+    showToast('请先填写配置档名称');
+    profileNameInput.focus();
+    return;
+  }
+  const existing = storedProfiles.find((profile) => profile.name === name);
+  const profile: StoredProfile = {
+    id: existing?.id ?? crypto.randomUUID(),
+    name: name.slice(0, 40),
+    modelId: currentModelId,
+    settings: createSettingsProfile({ ...settings, activeModelId: currentModelId }).settings,
+    updatedAt: Date.now(),
+  };
+  void putStoredProfile(profile).then(async () => {
+    await refreshProfileLibrary();
+    profileLibrary.value = profile.id;
+    showToast(existing ? '配置档已更新' : '配置档已保存');
+  }).catch((error) => {
+    addDiagnosticEvent('profile-save-error', error);
+    showToast('配置档保存失败');
+  });
+});
+applyProfileButton.addEventListener('click', () => {
+  const profile = storedProfiles.find((item) => item.id === profileLibrary.value);
+  if (!profile) return;
+  settings = { ...settings, ...profile.settings, onboardingComplete: settings.onboardingComplete, activeModelId: profile.modelId };
+  saveSettings();
+  applySettingsToControls();
+  profileNameInput.value = profile.name;
+  const finish = () => showToast('配置档已应用');
+  if (profile.modelId && profile.modelId !== currentModelId) void loadStoredModel(profile.modelId).finally(finish);
+  else finish();
+});
+deleteProfileButton.addEventListener('click', () => {
+  const id = profileLibrary.value;
+  if (!id || !window.confirm('删除这个配置档？角色模型不会删除。')) return;
+  void deleteStoredProfile(id).then(async () => {
+    await refreshProfileLibrary();
+    profileNameInput.value = '';
+    showToast('配置档已删除');
+  }).catch((error) => {
+    addDiagnosticEvent('profile-delete-error', error);
+    showToast('配置档删除失败');
+  });
+});
 exportSettingsButton.addEventListener('click', () => {
   downloadJson('miao-motion-settings.json', createSettingsProfile(settings));
   showToast('设置已导出；文件不包含模型和摄像头编号');
@@ -911,6 +1093,30 @@ removeModelButton.addEventListener('click', () => {
   });
 });
 exportDiagnosticsButton.addEventListener('click', exportDiagnosticReport);
+runPreflightButton.addEventListener('click', () => { void runPreflight(); });
+viewDiagnosticsButton.addEventListener('click', () => {
+  diagnosticsLog.replaceChildren(...(diagnosticEvents.length
+    ? diagnosticEvents.slice().reverse().map((event) => {
+      const item = document.createElement('li');
+      item.textContent = `${event.at} · ${event.kind} · ${event.message}`;
+      return item;
+    })
+    : [Object.assign(document.createElement('li'), { textContent: '暂无诊断事件' })]));
+  if (!diagnosticsDialog.open) diagnosticsDialog.showModal();
+});
+clearDiagnosticsButton.addEventListener('click', () => {
+  diagnosticEvents = [];
+  try { localStorage.removeItem(DIAGNOSTICS_KEY); } catch { /* Private contexts may block storage. */ }
+  diagnosticsLog.replaceChildren(Object.assign(document.createElement('li'), { textContent: '暂无诊断事件' }));
+  showToast('本地诊断日志已清除');
+});
+closeDiagnosticsButton.addEventListener('click', () => diagnosticsDialog.close());
+profileLibrary.addEventListener('change', () => {
+  const profile = storedProfiles.find((item) => item.id === profileLibrary.value);
+  profileNameInput.value = profile?.name ?? '';
+  applyProfileButton.disabled = !profile;
+  deleteProfileButton.disabled = !profile;
+});
 calibrateButton.addEventListener('click', calibrate);
 backgroundButton.addEventListener('click', () => {
   background = background === 'studio' ? 'green' : background === 'green' ? 'transparent' : 'studio';
@@ -947,7 +1153,15 @@ onboardingCameraButton.addEventListener('click', () => {
   else void startCamera();
 });
 onboardingCalibrateButton.addEventListener('click', calibrate);
-onboardingObsButton.addEventListener('click', () => { void copyObsUrl(); });
+onboardingBroadcastButton.addEventListener('click', () => {
+  background = 'green';
+  settings = { ...settings, background };
+  saveSettings();
+  applyBackground();
+  onboardingFinishState.textContent = '绿幕直播画面已打开。在 OBS 添加“窗口捕获”，选择 MIAO Motion，再添加色度键。';
+  onboardingDialog.close();
+  enterBroadcast();
+});
 broadcastImportButton.addEventListener('click', () => fileInput.click());
 
 for (const eventName of ['dragenter', 'dragover']) {
@@ -975,6 +1189,12 @@ stage.addEventListener('keydown', (event) => {
 
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && document.body.classList.contains('broadcast-mode')) exitBroadcast();
+  const target = event.target as HTMLElement | null;
+  const editing = target?.matches('input, textarea, select, [contenteditable="true"]');
+  if (!editing && event.key.toLowerCase() === 'r' && currentVrm) {
+    frameModel(currentVrm.scene, settings.viewPreset);
+    showToast('角色画面已重新居中');
+  }
 });
 stage.addEventListener('dblclick', () => {
   if (document.body.classList.contains('broadcast-mode')) exitBroadcast();
@@ -1000,6 +1220,7 @@ canvas.addEventListener('webglcontextlost', (event) => {
   stopCamera();
   setModelStatus('3D 画面已停止：显卡环境被重置，请下载诊断报告后刷新页面', 'error');
   setTrackingState('error', '3D 画面已停止，请刷新页面');
+  retry3dButton.hidden = false;
   showToast('3D 画面发生错误，请下载诊断报告后刷新页面');
 });
 
@@ -1049,6 +1270,20 @@ const animate = () => {
   currentVrm?.update(delta);
   controls.update();
   renderer.render(scene, camera);
+  if (thumbnailPendingId) {
+    const id = thumbnailPendingId;
+    thumbnailPendingId = '';
+    try {
+      const preview = document.createElement('canvas');
+      preview.width = 160;
+      preview.height = 160;
+      preview.getContext('2d')?.drawImage(canvas, 0, 0, 160, 160);
+      const thumbnail = preview.toDataURL('image/webp', 0.72);
+      void updateStoredModel(id, { thumbnail }).then(refreshModelLibrary).catch((error) => addDiagnosticEvent('thumbnail-save-error', error));
+    } catch (error) {
+      addDiagnosticEvent('thumbnail-capture-error', error);
+    }
+  }
 };
 animate();
 

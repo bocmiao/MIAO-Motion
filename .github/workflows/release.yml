@@ -1,0 +1,51 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows-release:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/cache@v4
+        with:
+          path: public/mediapipe
+          key: mediapipe-face-64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff
+      - run: npm ci
+      - run: npm run build
+      - run: npm run desktop:build
+      - name: Package portable build and checksums
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path release/MIAO-Motion-portable | Out-Null
+          Copy-Item dist, docs, start-portable.bat, portable-server.ps1, README.md, LICENSE, TRADEMARKS.md, THIRD_PARTY_NOTICES.md -Destination release/MIAO-Motion-portable -Recurse
+          Compress-Archive -Path release/MIAO-Motion-portable -DestinationPath release/MIAO-Motion-portable.zip
+          Copy-Item src-tauri/target/release/bundle/nsis/*-setup.exe release/
+          Get-ChildItem release -File | ForEach-Object {
+            $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower()
+            "$hash  $($_.Name)" | Set-Content "$($_.FullName).sha256" -Encoding ascii
+          }
+      - name: Create draft GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "${{ github.ref_name }}" release/* --draft --verify-tag --generate-notes --title "MIAO Motion ${{ github.ref_name }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MIAO-Motion-release-candidate
+          path: release/*
+          if-no-files-found: error
+          retention-days: 14

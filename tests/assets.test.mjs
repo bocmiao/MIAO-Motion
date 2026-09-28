@@ -20,3 +20,12 @@ test('runtime source does not fetch third-party CDNs', () => {
 const source = readFileSync(new URL('../src/main.ts', import.meta.url), 'utf8');
 assert.doesNotMatch(source, /storage\.googleapis\.com|cdn\.jsdelivr\.net/);
 });
+
+test('project-owned VRM fixtures are deterministic GLB and corrupt inputs', () => {
+const minimal = readFileSync(new URL('./fixtures/minimal-avatar.vrm', import.meta.url));
+const corrupt = readFileSync(new URL('./fixtures/corrupt-avatar.vrm', import.meta.url));
+assert.equal(minimal.readUInt32LE(0), 0x46546c67);
+assert.equal(minimal.readUInt32LE(4), 2);
+assert.equal(minimal.readUInt32LE(8), minimal.length);
+assert.doesNotMatch(corrupt.toString('utf8'), /^glTF/);
+});

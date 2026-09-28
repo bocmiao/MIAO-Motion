@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const source = readFileSync(new URL('../src/main.ts', import.meta.url), 'utf8');
+const storage = readFileSync(new URL('../src/storage.mjs', import.meta.url), 'utf8');
 
 test('camera, model loads, and page exit have lifecycle guards', () => {
   assert.match(source, /let cameraStarting = false/);
@@ -18,10 +19,12 @@ test('head return, look-at, and safe diagnostics are wired', () => {
   assert.doesNotMatch(source, /\.innerHTML\s*=/);
 });
 
-test('IndexedDB v2 stores Blob models and migrates legacy data', () => {
-  assert.match(source, /indexedDB\.open\('miao-motion', 2\)/);
-  assert.match(source, /createObjectStore\('models'/);
-  assert.match(source, /new Blob\(\[value\.data\]/);
-  assert.match(source, /data: file/);
-  assert.doesNotMatch(source, /file\.arrayBuffer\(\)/);
+test('IndexedDB v3 stores Blob model libraries, profiles, and migrates legacy data', () => {
+  assert.match(storage, /indexedDB\.open\(DATABASE_NAME, DATABASE_VERSION\)/);
+  assert.match(storage, /DATABASE_VERSION = 3/);
+  assert.match(storage, /createObjectStore\('models'/);
+  assert.match(storage, /createObjectStore\('profiles'/);
+  assert.match(storage, /new Blob\(\[value\.data\]/);
+  assert.match(storage, /data: file/);
+  assert.doesNotMatch(storage, /file\.arrayBuffer\(\)/);
 });

@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="MIAO Motion：免费开源、本地优先的 VRM 动漫角色实时动捕工具" />
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' blob:; img-src 'self' blob: data:; media-src 'self' blob:; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'none'" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' blob:; img-src 'self' blob: data:; media-src 'self' blob:; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'none'" />
     <title>MIAO Motion / 喵动</title>
   </head>
   <body>
@@ -22,7 +22,7 @@
 
       <section class="intro" aria-labelledby="welcome-title">
         <p class="eyebrow">第一代可运行版本 · v0.2.1</p>
-        <h1 id="welcome-title">三步，让你的角色动起来。</h1>
+        <h1 id="welcome-title">四步，让你的角色动起来。</h1>
         <p>导入 VRM、打开摄像头、进入直播画面。无需注册，不上传素材。</p>
       </section>
 
@@ -64,6 +64,19 @@
           <details class="advanced-settings">
             <summary>高级设置与模型诊断</summary>
             <div class="advanced-settings-content">
+          <section class="library-settings" aria-labelledby="library-title">
+            <strong id="library-title">角色库</strong>
+            <div class="library-row">
+              <img id="model-thumbnail" alt="当前角色缩略图" hidden />
+              <select id="model-library" aria-label="已保存角色">
+                <option value="">尚无已保存角色</option>
+              </select>
+            </div>
+            <div class="compact-actions">
+              <button id="rename-model" class="soft-button" type="button" disabled>重命名</button>
+              <button id="delete-library-model" class="soft-button" type="button" disabled>删除角色</button>
+            </div>
+          </section>
           <section class="motion-settings" aria-labelledby="motion-settings-title">
             <strong id="motion-settings-title">动捕设置</strong>
             <label>
@@ -77,6 +90,11 @@
               <span>动作幅度</span>
               <input id="sensitivity" type="range" min="0.5" max="1.5" step="0.1" value="1" />
               <output id="sensitivity-value" for="sensitivity">100%</output>
+            </label>
+            <label>
+              <span>动作平滑</span>
+              <input id="smoothing" type="range" min="0.5" max="2" step="0.1" value="1" />
+              <output id="smoothing-value" for="smoothing">标准</output>
             </label>
             <label>
               <span>画面质量</span>
@@ -99,6 +117,29 @@
               <button class="soft-button" type="button" data-view="upper">半身</button>
               <button class="soft-button" type="button" data-view="full">全身</button>
             </div>
+            <label>
+              <span>输出比例</span>
+              <select id="output-aspect">
+                <option value="auto">跟随窗口</option>
+                <option value="16:9">横屏 16:9</option>
+                <option value="9:16">竖屏 9:16</option>
+                <option value="1:1">方形 1:1</option>
+              </select>
+            </label>
+            <small>按 R 可重新居中；在输入框中按键不会触发快捷键。</small>
+          </section>
+
+          <section class="profile-settings" aria-labelledby="profile-title">
+            <strong id="profile-title">命名配置档</strong>
+            <input id="profile-name" type="text" maxlength="40" placeholder="例如：竖屏晚间直播" aria-label="配置档名称" />
+            <select id="profile-library" aria-label="已保存配置档">
+              <option value="">尚无配置档</option>
+            </select>
+            <div class="compact-actions">
+              <button id="save-profile" class="soft-button" type="button">保存当前配置</button>
+              <button id="apply-profile" class="soft-button" type="button" disabled>应用</button>
+              <button id="delete-profile" class="soft-button" type="button" disabled>删除</button>
+            </div>
           </section>
 
           <section class="model-doctor">
@@ -107,6 +148,16 @@
               <span id="doctor-summary">导入后自动检查</span>
             </div>
             <ul id="diagnostics" hidden></ul>
+          </section>
+
+          <section class="preflight-check" aria-labelledby="preflight-title">
+            <div>
+              <strong id="preflight-title">开播前 60 秒自检</strong>
+              <button id="run-preflight" class="soft-button" type="button">立即检查</button>
+            </div>
+            <ul id="preflight-results">
+              <li>点击后检查 3D、模型、摄像头、动捕、离线资源与本地空间。</li>
+            </ul>
           </section>
 
           <details class="data-tools">
@@ -118,6 +169,8 @@
               <button id="reset-settings" class="soft-button" type="button">恢复默认</button>
               <button id="remove-model" class="soft-button" type="button" disabled>删除本地模型</button>
               <button id="export-diagnostics" class="soft-button soft-button--wide" type="button">下载诊断报告</button>
+              <button id="view-diagnostics" class="soft-button" type="button">查看本地日志</button>
+              <button id="clear-diagnostics" class="soft-button" type="button">清除本地日志</button>
             </div>
             <input id="settings-file" type="file" accept="application/json,.json" hidden />
           </details>
@@ -137,7 +190,10 @@
               <strong id="model-name">角色预览</strong>
               <span id="model-status" role="status" aria-live="polite">把 VRM 文件拖到画面中，或点击左侧按钮</span>
             </div>
-            <span class="local-badge">LOCAL</span>
+            <div class="stage-toolbar-actions">
+              <button id="retry-3d" class="soft-button" type="button" hidden>重新启动 3D</button>
+              <span class="local-badge">LOCAL</span>
+            </div>
           </div>
 
           <div id="stage" class="stage" tabindex="0" aria-label="将 VRM 文件拖到这里">
@@ -221,7 +277,7 @@
 
           <section data-onboarding-panel="3" hidden>
             <p class="onboarding-kicker">校准与开播</p>
-            <h3>最后两步：校准正面，连接 OBS</h3>
+            <h3>最后两步：校准正面，准备直播画面</h3>
             <div class="finish-grid">
               <article>
                 <span>1</span>
@@ -231,13 +287,13 @@
               </article>
               <article>
                 <span>2</span>
-                <strong>加入 OBS</strong>
-                <p>添加“浏览器”来源，尺寸填写 1920 × 1080，然后粘贴地址。</p>
-                <button id="onboarding-copy-obs" class="soft-button" type="button">复制 OBS 地址</button>
+                <strong>打开绿幕直播画面</strong>
+                <p>程序会切换绿幕并进入干净画面；在 OBS 添加“窗口捕获”，再添加色度键。</p>
+                <button id="onboarding-enter-broadcast" class="soft-button" type="button">打开绿幕画面</button>
               </article>
             </div>
             <p id="onboarding-finish-state" class="onboarding-status" role="status" aria-live="polite">先让角色正常跟随，再进行校准和 OBS 设置。</p>
-            <p class="onboarding-tip">推荐使用绿幕背景加“窗口捕获”。浏览器来源属于实验方案。<a href="/help.html" target="_blank">查看离线零基础教程</a></p>
+            <p class="onboarding-tip">“窗口捕获”是默认方案；主界面的“复制 OBS 浏览器源地址”仅供进阶实验。<a href="/help.html" target="_blank">查看离线零基础教程</a></p>
           </section>
         </div>
 
@@ -248,6 +304,14 @@
             <button id="onboarding-next" class="primary-button" type="button">下一步</button>
           </div>
         </footer>
+      </div>
+    </dialog>
+    <dialog id="diagnostics-dialog" class="diagnostics-dialog" aria-labelledby="diagnostics-title">
+      <div>
+        <h2 id="diagnostics-title">本地诊断日志</h2>
+        <p>最多保存最近 80 条脱敏事件，不包含画面、模型内容、设备编号或完整本机路径。</p>
+        <ol id="diagnostics-log"></ol>
+        <button id="close-diagnostics" class="primary-button" type="button">关闭</button>
       </div>
     </dialog>
     <div id="toast" class="toast" role="status" hidden></div>

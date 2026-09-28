@@ -117,6 +117,16 @@ jobs:
             }
             $head = Invoke-WebRequest 'http://127.0.0.1:4173/' -Method Head -UseBasicParsing -TimeoutSec 5
             if ($head.StatusCode -ne 200) { throw 'HEAD 请求检查失败。' }
+            function Get-HttpStatus([string]$Uri, [string]$Method = 'GET') {
+              try {
+                return (Invoke-WebRequest $Uri -Method $Method -UseBasicParsing -TimeoutSec 5).StatusCode
+              } catch [System.Net.WebException] {
+                return [int]$_.Exception.Response.StatusCode
+              }
+            }
+            if ((Get-HttpStatus 'http://127.0.0.1:4173/not-found.txt') -ne 404) { throw '缺失文件未返回 404。' }
+            if ((Get-HttpStatus 'http://127.0.0.1:4173/' 'POST') -ne 405) { throw '非 GET/HEAD 请求未返回 405。' }
+            if ((Get-HttpStatus 'http://127.0.0.1:4173/%2e%2e/%2e%2e/Windows/win.ini') -notin @(403, 404)) { throw '目录穿越请求未被拒绝。' }
           } finally {
             if ($server -and -not $server.HasExited) {
               Stop-Process -Id $server.Id -Force
@@ -140,5 +150,28 @@ jobs:
           path: |
             MIAO-Motion-portable.zip
             MIAO-Motion-portable.zip.sha256
+          if-no-files-found: error
+          retention-days: 14
+
+  windows-desktop:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/cache@v4
+        with:
+          path: public/mediapipe
+          key: mediapipe-face-64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff
+      - run: npm ci
+      - run: npm run desktop:build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MIAO-Motion-Tauri-Windows
+          path: src-tauri/target/release/bundle/nsis/*-setup.exe
           if-no-files-found: error
           retention-days: 14

@@ -97,7 +97,7 @@ button:disabled { cursor: not-allowed; opacity: 0.42; }
 
 .control-panel { display: grid; align-content: start; gap: 10px; }
 
-.step-card, .tracking-card, .advanced-settings, .motion-settings, .model-doctor, .data-tools, .broadcast-controls {
+.step-card, .tracking-card, .advanced-settings, .library-settings, .motion-settings, .profile-settings, .model-doctor, .preflight-check, .data-tools, .broadcast-controls {
   border: 1px solid rgba(38, 43, 54, 0.09);
   border-radius: 19px;
   background: rgba(255, 255, 255, 0.74);
@@ -149,6 +149,12 @@ button:focus-visible, .stage:focus-visible { outline: 3px solid #e5a13e; outline
 .status-dot[data-state="lost"], .status-dot[data-state="error"] { background: #cf5550; }
 
 .motion-settings { padding: 15px 16px; display: grid; gap: 10px; }
+.library-settings, .profile-settings { padding: 15px 16px; display: grid; gap: 10px; }
+.library-row { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 9px; align-items: center; }
+.library-row img { width: 52px; height: 52px; object-fit: cover; border-radius: 10px; background: #e9e8e3; }
+.library-row select, .profile-settings select, .profile-settings input { width: 100%; min-width: 0; padding: 8px 9px; border: 1px solid #d9d7d0; border-radius: 9px; color: #353b48; background: #fff; }
+.compact-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.compact-actions .soft-button { flex: 1 1 90px; min-height: 36px; padding: 7px 9px; }
 .motion-settings > label { display: grid; grid-template-columns: 74px minmax(0, 1fr) auto; align-items: center; gap: 10px; color: #687080; font-size: 12px; }
 .motion-settings select { min-width: 0; grid-column: 2 / -1; padding: 8px 9px; border: 1px solid #d9d7d0; border-radius: 9px; color: #353b48; background: #fff; }
 .motion-settings input[type="range"] { width: 100%; accent-color: #b87320; }
@@ -161,7 +167,7 @@ button:focus-visible, .stage:focus-visible { outline: 3px solid #e5a13e; outline
 .advanced-settings { padding: 14px; }
 .advanced-settings > summary { cursor: pointer; font-weight: 800; }
 .advanced-settings-content { margin-top: 12px; display: grid; gap: 10px; }
-.advanced-settings .motion-settings, .advanced-settings .model-doctor, .advanced-settings .data-tools { border-radius: 14px; background: #fff; box-shadow: none; }
+.advanced-settings .library-settings, .advanced-settings .motion-settings, .advanced-settings .profile-settings, .advanced-settings .model-doctor, .advanced-settings .preflight-check, .advanced-settings .data-tools { border-radius: 14px; background: #fff; box-shadow: none; }
 
 .model-doctor { padding: 15px 16px; }
 .model-doctor > div { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
@@ -175,6 +181,13 @@ button:focus-visible, .stage:focus-visible { outline: 3px solid #e5a13e; outline
 .model-doctor li.ok span { background: #42a86e; }
 .model-doctor li.warn span { background: #d79131; }
 .model-doctor li.error span { background: #c64c47; }
+.preflight-check { padding: 14px 16px; }
+.preflight-check > div { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.preflight-check .soft-button { min-height: 34px; padding: 6px 9px; }
+.preflight-check ul { margin: 10px 0 0; padding-left: 20px; color: #687080; font-size: 12px; line-height: 1.65; }
+.preflight-check li.ok { color: #27734a; }
+.preflight-check li.warn { color: #9b651d; }
+.preflight-check li.error { color: #b13b35; }
 
 .data-tools { padding: 14px 16px; }
 .data-tools summary { cursor: pointer; font-weight: 800; }
@@ -196,11 +209,16 @@ button:focus-visible, .stage:focus-visible { outline: 3px solid #e5a13e; outline
 
 .stage-toolbar { padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; gap: 16px; border-bottom: 1px solid rgba(38, 43, 54, 0.08); }
 .stage-toolbar > div { display: grid; gap: 3px; }
+.stage-toolbar .stage-toolbar-actions { display: flex; align-items: center; gap: 8px; }
+.stage-toolbar-actions .soft-button { min-height: 32px; padding: 6px 9px; font-size: 11px; }
 .stage-toolbar span:not(.local-badge) { color: #687080; font-size: 13px; }
 #model-status[data-kind="error"] { color: #b13b35; }
 .local-badge { padding: 6px 9px; font-size: 10px; font-weight: 900; letter-spacing: 0.1em; }
 
 .stage { position: relative; min-height: 520px; overflow: hidden; }
+.stage[data-aspect="16:9"] { min-height: 0; aspect-ratio: 16 / 9; align-self: center; }
+.stage[data-aspect="9:16"] { width: min(100%, 390px); min-height: 0; aspect-ratio: 9 / 16; justify-self: center; }
+.stage[data-aspect="1:1"] { width: min(100%, 620px); min-height: 0; aspect-ratio: 1; justify-self: center; align-self: center; }
 .stage[data-background="studio"] { background: radial-gradient(circle at 50% 42%, #fff 0, #e9e8e3 58%, #d9d8d2 100%); }
 .stage[data-background="green"] { background: #00b140; }
 .stage[data-background="transparent"] { background: transparent; }
@@ -221,6 +239,12 @@ button:focus-visible, .stage:focus-visible { outline: 3px solid #e5a13e; outline
 footer { min-height: 58px; display: flex; align-items: center; justify-content: space-between; gap: 16px; color: #777e8d; font-size: 12px; }
 
 .onboarding-dialog { width: min(680px, calc(100% - 28px)); max-height: min(820px, calc(100vh - 28px)); padding: 0; overflow: auto; border: 0; border-radius: 24px; color: #17202f; background: #faf8f3; box-shadow: 0 30px 90px rgba(17, 22, 32, 0.3); }
+.diagnostics-dialog { width: min(760px, calc(100% - 28px)); max-height: calc(100vh - 28px); padding: 0; overflow: auto; border: 0; border-radius: 20px; color: #17202f; background: #faf8f3; box-shadow: 0 30px 90px rgba(17, 22, 32, 0.3); }
+.diagnostics-dialog::backdrop { background: rgba(24, 29, 39, 0.58); }
+.diagnostics-dialog > div { padding: 24px; }
+.diagnostics-dialog h2 { margin: 0; }
+.diagnostics-dialog p { color: #687080; font-size: 13px; line-height: 1.5; }
+.diagnostics-dialog ol { max-height: 52vh; overflow: auto; padding-left: 24px; color: #4d5360; font: 12px/1.55 ui-monospace, SFMono-Regular, Consolas, monospace; }
 .onboarding-dialog::backdrop { background: rgba(24, 29, 39, 0.58); backdrop-filter: blur(5px); }
 .onboarding-shell { display: grid; }
 .onboarding-header { min-height: auto; padding: 24px 26px 17px; display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; color: inherit; }
@@ -229,6 +253,9 @@ footer { min-height: 58px; display: flex; align-items: center; justify-content: 
 .dialog-close { width: 36px; height: 36px; border: 0; border-radius: 50%; color: #606775; background: #eceae4; font-size: 24px; line-height: 1; }
 .onboarding-progressbar { height: 4px; background: #e4e1da; }
 .onboarding-progressbar span { width: 25%; height: 100%; display: block; background: #b87320; transition: width 180ms ease; }
+.onboarding-progressbar[data-step="2"] span { width: 50%; }
+.onboarding-progressbar[data-step="3"] span { width: 75%; }
+.onboarding-progressbar[data-step="4"] span { width: 100%; }
 .onboarding-content { min-height: 380px; padding: 28px 28px 20px; }
 .onboarding-content section { display: grid; gap: 16px; }
 .onboarding-content h3 { margin: 0; font-size: 22px; letter-spacing: -0.02em; }
@@ -267,7 +294,7 @@ footer { min-height: 58px; display: flex; align-items: center; justify-content: 
 @media (max-width: 900px) {
   .workspace { grid-template-columns: 1fr; }
   .control-panel { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .tracking-card, .advanced-settings, .motion-settings, .model-doctor, .data-tools, .broadcast-controls { min-height: 120px; }
+  .tracking-card, .advanced-settings, .library-settings, .motion-settings, .profile-settings, .model-doctor, .preflight-check, .data-tools, .broadcast-controls { min-height: 120px; }
   .stage-card { min-height: 550px; }
 }
 
@@ -278,7 +305,7 @@ footer { min-height: 58px; display: flex; align-items: center; justify-content: 
   .intro { padding-top: 24px; }
   .control-panel { grid-template-columns: 1fr; }
   .step-card { grid-template-columns: 34px minmax(0, 1fr) auto; }
-  .tracking-card, .advanced-settings, .motion-settings, .model-doctor, .data-tools, .broadcast-controls { min-height: auto; }
+  .tracking-card, .advanced-settings, .library-settings, .motion-settings, .profile-settings, .model-doctor, .preflight-check, .data-tools, .broadcast-controls { min-height: auto; }
   .stage-card { min-height: 480px; border-radius: 21px; }
   .stage { min-height: 420px; }
   footer { align-items: flex-start; flex-direction: column; justify-content: center; }

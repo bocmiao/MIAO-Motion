@@ -3,16 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'self'; base-uri 'none'; form-action 'none'">
   <title>MIAO Motion 离线零基础教程</title>
-  <style>
-    :root { color-scheme: dark; font: 17px/1.7 system-ui, sans-serif; background:#111522; color:#edf2ff }
-    body { max-width: 860px; margin:auto; padding:32px 22px 72px }
-    h1,h2 { line-height:1.25 } h2 { margin-top:2em; color:#b8c8ff }
-    .note { padding:14px 18px; border-left:4px solid #7e9cff; background:#1a2032; border-radius:8px }
-    li { margin:.45em 0 } code { background:#242b40; padding:.12em .35em; border-radius:4px }
-    a { color:#9db4ff } table { width:100%; border-collapse:collapse } th,td { padding:9px; border:1px solid #39425d; text-align:left }
-  </style>
+  <link rel="stylesheet" href="/help.css">
 </head>
 <body>
   <h1>MIAO Motion 离线零基础教程</h1>
@@ -39,7 +32,15 @@
   </ol>
   <p class="note">OBS“浏览器来源”是实验方案：它不共享普通浏览器保存的模型，通常还需要用 <code>--enable-media-stream</code> 启动 OBS。必须在 OBS 交互窗口内重新导入模型，并避免另一个页面同时占用摄像头。</p>
 
-  <h2>四、常见问题</h2>
+  <h2>四、角色库、配置档和开播自检</h2>
+  <ol>
+    <li>展开“高级设置与模型诊断”，在角色库切换、重命名或删除浏览器副本。</li>
+    <li>选择头像/半身/全身、背景、平滑和横屏 16:9 或竖屏 9:16；按 <code>R</code> 可重新居中。</li>
+    <li>填写配置档名称并保存，下次一键恢复角色和整套画面参数。</li>
+    <li>开播前运行“60 秒自检”，处理红色项目，再按直播软件预览确认声音和画面。</li>
+  </ol>
+
+  <h2>五、常见问题</h2>
   <table>
     <thead><tr><th>现象</th><th>处理</th></tr></thead>
     <tbody>
@@ -48,10 +49,11 @@
       <tr><td>角色卡顿</td><td>在高级设置选择“性能优先”，并压缩大贴图或减少模型面数。</td></tr>
       <tr><td>模型刷新后消失</td><td>浏览器空间不足或站点数据被清理；重新导入原始 VRM。</td></tr>
       <tr><td>OBS 黑屏</td><td>先用推荐的绿幕窗口捕获；确认窗口没有最小化。</td></tr>
+      <tr><td>3D 画面停止</td><td>点击“重新启动 3D”；仍失败时更新显卡驱动并开启硬件加速。</td></tr>
     </tbody>
   </table>
 
-  <h2>五、退出与隐私</h2>
-  <p>点“关闭摄像头”或关闭页面会释放摄像头。设置文件不含模型和设备编号；诊断报告不含画面、模型内容和完整本机路径。发送诊断报告前仍建议自己打开检查。</p>
+  <h2>六、退出与隐私</h2>
+  <p>点“关闭摄像头”或关闭页面会释放摄像头。设置文件不含画面；诊断报告和最多 80 条本地日志不含画面、模型内容、设备编号和完整本机路径，可随时查看或清除。发送诊断报告前仍建议自己打开检查。</p>
 </body>
 </html>
