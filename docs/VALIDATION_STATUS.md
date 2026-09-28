@@ -13,7 +13,8 @@
 | 生命周期 | 伪相机、识别器故障注入、track ended、Blob/数据库完成延迟 | 通过 |
 | 存储/引导 | 事务去重、旧 Blob 迁移清理、单项重新载入、跳过模型/摄像头并刷新 | 通过 |
 | 开发 CSP | 真实 Vite dev CSS 与安全策略；生产仍严格 | 通过 |
-| Node/类型/构建/依赖 | npm run build 与 npm audit | 35 项 Node、TypeScript、Vite 通过；运行时依赖 0 漏洞 |
+| Node/类型/构建/依赖 | npm run build 与 npm audit | 36 项 Node、TypeScript、Vite 通过；运行时依赖 0 漏洞 |
+| 官方离线角色 | 原始 pixiv VRM1 哈希/许可字段检查；阻断外网后通过新手按钮导入，检查兼容性、角色像素与相机仍关闭 | 通过；浏览器流程合计 17 条 |
 | 删除/读取失败 | 延迟删除不能覆盖新导入；不存在记录只拒绝一次且可继续保存 | Node 与故障注入 E2E 通过 |
 
 ## Windows CI 本轮新增检查
@@ -23,12 +24,29 @@
 - Rust/Tauri --locked 编译；安装 NSIS 后检查 GUI 子系统、进程与窗口，再卸载。
 - 独立虚拟摄像头 API 探针编译/调用；不注册摄像头，不代表已可传帧。
 
-执行记录：CI #40 暴露 Windows 换行符测试与 Cargo 参数透传错误，已修复。CI #41 被含额外存储修复的新提交替换。**CI #42 五个 job 全部成功**：35 项 Node、16 条浏览器流程、普通用户便携启动、NSIS 安装/启动窗口/卸载、Windows API 探针，并发布 v0.2.1-beta。加入离线官方示例后的 v0.2.2 将独立重跑，不覆盖旧发布物。
+执行记录：CI #40 暴露 Windows 换行符测试与 Cargo 参数透传错误，已修复。CI #41 被新提交替换；CI #42 五项任务成功并发布 v0.2.1-beta。CI #43 被发布说明修正替换。
+
+**[CI #44](https://github.com/bocmiao/MIAO-Motion/actions/runs/36421921559) 五项任务全部成功**，源代码提交 `7de570b22599c7e1085609404a8a831e2940f739`：
+
+- build：36 项 Node、TypeScript、Vite、运行时依赖审计。
+- browser-smoke：17 条流程，包括真实官方模型离线导入与角色像素检查；截图保存在该次运行的 `playwright-evidence-36421921559` 附件。
+- windows-portable：中文空格目录解压、普通用户启动、服务故障恢复和打包。
+- windows-desktop：Rust/Tauri 锁定构建、NSIS 安装/启动窗口/卸载、独立 Windows 虚拟摄像头 API 探针。
+- publish-beta：[v0.2.2-beta](https://github.com/bocmiao/MIAO-Motion/releases/tag/v0.2.2-beta) 已公开发布，包含安装版、便携版和两个 SHA256 文件；不覆盖旧版本。
+
+本记录是发布后的证据补录。发布附件对应上述源代码提交，不包含后来补写的下载哈希与此验证说明。
+
+已从公开 Release 实际下载两个附件，使用 `sha256sum` 计算，均与 GitHub 记录一致；另检查便携 ZIP 确实包含离线 VRM、示例许可、MPL 与第三方许可文件。
+
+| 文件 | 字节数 | 实际下载 SHA256 |
+|---|---:|---|
+| MIAO-Motion-portable.zip | 17,937,959 | `71fd54363a4147c8907ab569b1445be1f0e86946b0a3ae0133063692ffabfb81` |
+| MIAO.Motion_0.2.2_x64-setup.exe | 18,234,871 | `0ced4594e95c654da933100a0be8bb259932cf245c9ed41a9c5e69b371298681` |
 
 ## 不能推导的结论
 
 - 伪识别器没有验证真实 MediaPipe 人脸输出、设备权限、隐私灯和驱动兼容。
-- 合成 VRM 不是美术样本，未覆盖发型/衣服物理、所有表情和超大模型。
+- 合成 VRM 与一个官方真实示例未覆盖所有发型/衣服物理、表情和超大模型。
 - Windows CI 不是普通 Windows 10/11 用户桌面；相机、OBS、直播/会议软件仍待真人确认。
 - WebView 透明配置不代表原生透明捕获已完成；虚拟摄像头一般无 alpha，应输出完整背景。
 - 身体/手部、语音、原生虚拟摄像头传帧、Spout2、更新、轻捏人尚未实现。
