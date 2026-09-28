@@ -8,3 +8,5 @@ code { background:#242b40; padding:.12em .35em; border-radius:4px }
 a { color:#9db4ff }
 table { width:100%; border-collapse:collapse }
 th,td { padding:9px; border:1px solid #39425d; text-align:left }
+
+.tutorial-image { max-width: 100%; height: auto; }

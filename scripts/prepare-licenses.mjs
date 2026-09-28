@@ -34,6 +34,7 @@ for (const path of packages) {
 sections.push(`===== Google MediaPipe Face Landmarker model (Apache-2.0) =====\nSHA-256: 64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff\n${(await readFile(fallback['Apache-2.0'], 'utf8')).trim()}\n`);
 sections.push('===== Google MediaPipe Pose / Hand Landmarker models (Apache-2.0) =====\n' + (await readFile(fallback['Apache-2.0'], 'utf8')));
 sections.push('===== Softcam and Microsoft DirectShow Base Classes (MIT) =====\n' + (await readFile(resolve(root, 'native/softcam/LICENSE'), 'utf8')));
+sections.push(await readFile(resolve(root, 'native/softcam/LICENSE-Microsoft.txt'), 'utf8'));
 await writeFile(resolve(output, 'THIRD_PARTY_LICENSES.txt'), `${sections.join('\n')}\n`);
 await cp(resolve(root, 'LICENSE'), resolve(output, 'LICENSE-MPL-2.0.txt'));
 await cp(resolve(root, 'THIRD_PARTY_NOTICES.md'), resolve(output, 'THIRD_PARTY_NOTICES.md'));

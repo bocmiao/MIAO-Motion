@@ -237,7 +237,7 @@ let thumbnailPendingId = '';
 const clock = new THREE.Clock();
 const bodyTracking = setupBodyTracking(() => currentVrm, () => settings.mirror);
 const studio = setupStudioTools(renderer, () => currentVrm, () => currentModelId, message => showToast(message), () => updateBroadcastStatus());
-const nativeCamera = setupNativeCamera(canvas, () => Boolean(currentVrm) && !modelPreparing);
+const nativeCamera = setupNativeCamera(canvas, () => Boolean(currentVrm) && stage.dataset.renderReady === 'true');
 let lastPhoneFrame = 0;
 const phone = setupPhone(packet => {
   lastPhoneFrame = performance.now();
@@ -514,8 +514,13 @@ const loadVrm = async (file: File, persist = true, storedId = '') => {
   }
 
   const generation = ++loadGeneration;
+  const previousReady = stage.dataset.renderReady;
+  const previousCanAnimate = modelCanAnimate;
+  let replaced = false;
   modelPreparing = true;
   stage.dataset.renderReady = 'false';
+  modelCanAnimate = false;
+  broadcastButton.disabled = obsButton.disabled = true;
   importButton.disabled = true;
   modelLibrary.disabled = true;
   loadModelButton.disabled = true;
@@ -544,6 +549,7 @@ const loadVrm = async (file: File, persist = true, storedId = '') => {
 
     bodyTracking.resetPose();
     currentVrm = vrm;
+    replaced = true;
     thumbnailPendingId = '';
     scene.add(vrm.scene);
     frameModel(vrm.scene, settings.viewPreset);
@@ -591,6 +597,11 @@ const loadVrm = async (file: File, persist = true, storedId = '') => {
     if (generation !== loadGeneration) return false;
     console.error(error);
     addDiagnosticEvent('model-load-error', error);
+    if (!replaced) {
+      modelCanAnimate = previousCanAnimate;
+      stage.dataset.renderReady = previousReady ?? 'false';
+      broadcastButton.disabled = obsButton.disabled = !modelCanAnimate;
+    }
     setModelStatus(modelLoadErrorMessage(error), 'error');
     updateBroadcastStatus();
     return false;

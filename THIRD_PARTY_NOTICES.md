@@ -9,6 +9,13 @@ MIAO Motion currently depends on the following open-source packages:
 | MediaPipe Tasks Vision | Apache-2.0 | Local face landmarks, expressions and head pose |
 | Vite | MIT | Development and production build |
 | TypeScript | Apache-2.0 | Type checking |
+| @tauri-apps/api | MIT / Apache-2.0 | Desktop IPC |
+| tshino/softcam | MIT | DirectShow virtual camera; pinned revision in native/README.md |
+| Microsoft DirectShow Base Classes | MIT | Camera filter support; copyright headers preserved |
+
+The optional Pose and Hand Landmarker models are also bundled for offline use. Official download paths and mandatory SHA-256 checks are in `scripts/prepare-body-models.mjs`; their Apache-2.0 license text is included in the runtime notices. Softcam and Microsoft's separate MIT texts are included as well. Native dependency source and provenance are preserved under `native/`.
+
+The procedural cat “喵小动” is generated entirely from project-owned geometry by `scripts/generate-miao-avatar.mjs`; it does not derive from the pixiv model. Its asset terms are supplied in `public/miao-license.html` and the VRM metadata.
 
 `npm run prepare:assets` generates `public/licenses/THIRD_PARTY_LICENSES.txt` from the production dependency tree. Vite copies it into `dist/licenses/`, and the Windows portable job packages that directory with the project license and notices.
 

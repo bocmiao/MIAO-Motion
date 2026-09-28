@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
+import { createHash } from 'node:crypto';
 const fixture = fileURLToPath(new URL('../fixtures/minimal-avatar.vrm', import.meta.url));
 const open = async page => { await page.goto('/'); await page.locator('#onboarding-later').click(); };
 
@@ -13,6 +14,7 @@ test('original mascot loads with face controls and can be recolored', async ({ p
   await expect(page.locator('#expression-preset')).toHaveValue('happy');
   await page.locator('#avatar-material').selectOption({ label: '深青色衣服' });
   await page.locator('#avatar-color').fill('#2856b0');
+  await page.evaluate(() => window.scrollTo(0, 0));
   await page.screenshot({ path: test.info().outputPath('mascot-studio.png'), fullPage: true });
   await page.locator('#broadcast-toggle').click();
   await page.screenshot({ path: test.info().outputPath('mascot-broadcast.png') });
@@ -98,28 +100,35 @@ test('offline body and hand engines start and release on camera stop', async ({ 
 
 test('OBS setup creates its own window source and green filter through authenticated protocol', async ({ page }) => {
   const requests = [];
+  let authentication;
   await page.routeWebSocket('ws://127.0.0.1:4455', socket => {
-    socket.send(JSON.stringify({ op: 0, d: { rpcVersion: 1 } }));
+    socket.send(JSON.stringify({ op: 0, d: { rpcVersion: 1, authentication: { salt: 'test-salt', challenge: 'test-challenge' } } }));
     socket.onMessage(raw => {
       const { op, d } = JSON.parse(raw);
-      if (op === 1) { socket.send(JSON.stringify({ op: 2, d: { negotiatedRpcVersion: 1 } })); return; }
+      if (op === 1) { authentication = d.authentication; socket.send(JSON.stringify({ op: 2, d: { negotiatedRpcVersion: 1 } })); return; }
       requests.push(d);
-      socket.send(JSON.stringify({ op: 7, d: { requestId: d.requestId, requestStatus: { result: true }, responseData: d.requestType === 'GetInputPropertiesListPropertyItems' ? { propertyItems: [{ itemName: 'MIAO Motion / 喵动', itemValue: 'MIAO Motion / 喵动:Chrome_WidgetWin_1:miao-motion.exe', itemEnabled: true }] } : {} } }));
+      const responseData = d.requestType === 'GetInputPropertiesListPropertyItems' ? { propertyItems: [{ itemName: 'MIAO Motion / 喵动', itemValue: 'MIAO Motion / 喵动:Chrome_WidgetWin_1:miao-motion.exe', itemEnabled: true }] } : d.requestType === 'CreateInput' ? { sceneItemId: 42 } : d.requestType === 'GetVideoSettings' ? { baseWidth: 1920, baseHeight: 1080 } : {};
+      socket.send(JSON.stringify({ op: 7, d: { requestId: d.requestId, requestStatus: { result: true }, responseData } }));
     });
   });
   await open(page);
   await page.locator('#model-file').setInputFiles(fixture);
   await expect(page.locator('#model-status')).toContainText('模型可用');
   await page.getByText('自动配置 OBS（Windows）', { exact: true }).click();
+  await page.locator('#obs-password').fill('test-password');
   await page.locator('#setup-obs').click();
   await expect(page.locator('#obs-setup-status')).toContainText('已创建');
-  expect(requests.map(r => r.requestType)).toEqual(['CreateScene', 'CreateInput', 'GetInputPropertiesListPropertyItems', 'SetInputSettings', 'CreateSourceFilter']);
-  expect(requests.at(-1).requestData.filterKind).toBe('chroma_key_filter_v2');
+  const hash = text => createHash('sha256').update(text).digest('base64');
+  expect(authentication).toBe(hash(hash('test-passwordtest-salt') + 'test-challenge'));
+  expect(requests.map(r => r.requestType)).toEqual(['CreateScene', 'CreateInput', 'GetInputPropertiesListPropertyItems', 'SetInputSettings', 'CreateSourceFilter', 'GetVideoSettings', 'SetSceneItemTransform']);
+  expect(requests[4].requestData.filterKind).toBe('chroma_key_filter_v2');
+  expect(requests[6].requestData.sceneItemTransform.boundsWidth).toBe(1920);
   expect(requests[1].requestData.inputKind).toBe('window_capture');
 });
 
 test('native bridge sends bounded binary frames and releases on stop; phone drives without webcam', async ({ page }) => {
   await page.addInitScript(() => {
+    window.isTauri = true;
     window.__nativeFrames = [];
     window.__nativeStops = 0;
     window.__TAURI_INTERNALS__ = { invoke: async (command, args) => {

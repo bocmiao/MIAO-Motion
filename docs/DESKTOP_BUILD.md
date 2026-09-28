@@ -8,7 +8,7 @@
 
 ## 开发者从零构建
 
-1. 安装 Node.js 22 LTS、Rust stable、Microsoft C++ Build Tools 的“使用 C++ 的桌面开发”。
+1. 安装 Node.js 22 LTS、Rust stable、Microsoft C++ Build Tools 的“使用 C++ 的桌面开发”（含 Windows SDK、CMake）。
 2. Windows 10 1803 以后通常已有 WebView2；若缺少，从微软安装 Evergreen Runtime。
 3. 在仓库目录运行 `npm ci`。
 4. 开发调试运行 `npm run desktop:dev`。
@@ -19,6 +19,9 @@
 版本以 `package.json` 为准：`npm version` 自动同步 Cargo manifest/lock，Tauri 读取 package 路径，网页由 Vite 注入。`tests/version.test.mjs` 防止手工更新漏项。两份 Cargo.lock 都需提交，CI 使用 --locked。
 
 ## 当前边界
+
+- 桌面构建会先编译 `native/` 下的 DirectShow DLL 和中文注册程序，并将它们随包分发。只有用户点击安装组件后才请求 UAC 注册；卸载应用前先在应用中卸载组件。支持范围见 [原生组件说明](../native/README.md)。
+- 签名证书、镜像和社区地址尚未提供，接入方式见 [分发接入说明](DISTRIBUTION_SETUP.md)。
 
 - CI 现会静默安装、启动并检查窗口、卸载，且验证没有控制台子系统；运行结果见 VALIDATION_STATUS。它不能替代用户桌面、相机/OBS 和升级体验。
 - `webviewInstallMode` 使用静默下载引导器；完全断网的干净机器若没有 WebView2，安装后仍可能无法启动。后续可提供带离线 WebView2 的更大安装包。
