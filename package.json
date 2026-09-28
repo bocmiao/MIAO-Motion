@@ -23,7 +23,7 @@
   "dependencies": {
     "@mediapipe/tasks-vision": "^1.0.1",
     "@pixiv/three-vrm": "^3.5.1",
-    "three": "^0.183.2"
+    "three": "^0.186.1"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
