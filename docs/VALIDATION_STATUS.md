@@ -33,6 +33,7 @@
 | IndexedDB v2 Blob 与 v1 迁移 | 运行时契约检查 | 通过 |
 | CSP、键盘导入、广播失败浮层 | DOM 契约 + Playwright 冒烟 | 自动检查已建立 |
 | Windows CRLF 与 Node-free 启动器 | 启动器契约 + Windows CI | 自动检查已建立 |
+| Node-free 便携服务器启动、首页、帮助、许可证与 HEAD 请求 | Windows CI 实际启动 PowerShell 服务并发起 HTTP 请求 | 通过 |
 | 第三方许可证进入 dist | 构建脚本与产物检查 | 通过 |
 
 ## 已知非阻断项
@@ -57,7 +58,7 @@
 
 ## 必须等待真实 Windows 环境
 
-- Windows 10 22H2、Windows 11 启动与浏览器权限。
+- Windows 10 22H2、Windows 11 的用户桌面启动与浏览器权限（Windows CI 已验证无界面服务可启动和提供静态文件）。
 - 笔记本内置摄像头、USB 摄像头和 OBS Virtual Camera。
 - NVIDIA、AMD、Intel 集显的 WebGL/MediaPipe 差异。
 - 720p/1080p 的实际 FPS、端到端延迟、CPU/GPU 和内存。

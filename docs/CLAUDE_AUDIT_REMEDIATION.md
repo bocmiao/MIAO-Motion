@@ -23,7 +23,7 @@
 | P2-11 广播无反馈 | 完成 | 缺模型、缺摄像头、加载中和错误均显示中文状态浮层，正常后隐藏 | — |
 | P2-12 窗口捕获节流 | 文档完成 | README、离线帮助与平台指南明确禁止最小化/完全遮挡 | Windows Chromium/OBS 实测 |
 | P2-13 文档代码矛盾 | 完成 | 头骨缺失说明、OBS 路径、Windows 10 级别和摄像头错误文案统一 | — |
-| P2-14 CI 覆盖不足 | 完成 | Linux 构建、MediaPipe 缓存、Chromium Playwright、Windows 构建/CRLF/便携包 artifact | — |
+| P2-14 CI 覆盖不足 | 完成 | Linux 构建、MediaPipe/Chromium 缓存、Chromium Playwright、失败证据上传、Windows 构建/CRLF/便携服务器 HTTP 冒烟/便携包 artifact | — |
 | P2-15 测试组织/声明漂移 | 完成 | Node 测试拆为 `test()` 粒度；开启 `allowJs/checkJs`；运行时导出与声明一致性测试 | — |
 | P2-16 诊断脱敏不足 | 完成 | 覆盖反斜杠/正斜杠 Windows、UNC、WSL、macOS 卷路径；UA 只保留浏览器大版本；单元测试 | — |
 | P3-17 `innerHTML` 风险 | 完成 | 诊断列表只用 `createElement`/`textContent`；契约测试禁止赋值 `innerHTML` | — |

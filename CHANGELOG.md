@@ -39,6 +39,8 @@
 - 加入 CSP、键盘拖放区操作、meter 可访问名称和无 `innerHTML` 的诊断渲染。
 - 测试拆为细粒度用例，开启 JavaScript 类型检查，并增加 Playwright 与 Windows CI。
 - 构建产物包含运行时依赖、Face Landmarker 和 MPL-2.0 许可文本。
+- CI 缓存 Chromium、延长下载超时并在失败时保留 trace；重复分支运行自动取消旧任务。
+- Windows CI 实际启动 Node-free 便携服务器，验证首页、离线帮助、许可证和 HEAD 请求后再打包。
 
 ### 待验证
 

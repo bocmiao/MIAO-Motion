@@ -1,3 +1,7 @@
+param(
+  [switch]$NoBrowser
+)
+
 $ErrorActionPreference = 'Stop'
 $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot 'dist'))
 $rootBoundary = $root.TrimEnd([IO.Path]::DirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar
@@ -15,7 +19,7 @@ try {
   $listener.Start()
   Write-Host "MIAO Motion 已启动：$prefix"
   Write-Host '关闭此窗口即可停止程序。'
-  Start-Process $prefix
+  if (-not $NoBrowser) { Start-Process $prefix }
   while ($listener.IsListening) {
     $context = $listener.GetContext()
     try {

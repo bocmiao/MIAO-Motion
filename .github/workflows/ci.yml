@@ -4,6 +4,11 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -11,6 +16,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -27,6 +33,7 @@ jobs:
 
   browser-smoke:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -37,12 +44,31 @@ jobs:
         with:
           path: public/mediapipe
           key: mediapipe-face-64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff
+      - name: Cache Playwright Chromium
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
       - run: npm ci
-      - run: npx playwright install --with-deps chromium
+      - name: Install Chromium and system dependencies
+        env:
+          PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT: 120000
+        run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
+      - name: Upload browser failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-failure-${{ github.run_id }}
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 7
 
   windows-portable:
     runs-on: windows-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -55,6 +81,49 @@ jobs:
           key: mediapipe-face-64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff
       - run: npm ci
       - run: npm run build
+      - name: Smoke-test Node-free portable server
+        shell: pwsh
+        run: |
+          $stdout = Join-Path $env:RUNNER_TEMP 'miao-portable-server.stdout.log'
+          $stderr = Join-Path $env:RUNNER_TEMP 'miao-portable-server.stderr.log'
+          $script = Join-Path $PWD 'portable-server.ps1'
+          $arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$script`" -NoBrowser"
+          $server = Start-Process powershell.exe -ArgumentList $arguments -PassThru `
+            -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+          try {
+            $deadline = [DateTime]::UtcNow.AddSeconds(30)
+            $homeResponse = $null
+            while ([DateTime]::UtcNow -lt $deadline) {
+              if ($server.HasExited) {
+                throw "便携服务器提前退出，退出码 $($server.ExitCode)。"
+              }
+              try {
+                $homeResponse = Invoke-WebRequest 'http://127.0.0.1:4173/' -UseBasicParsing -TimeoutSec 2
+                break
+              } catch {
+                Start-Sleep -Milliseconds 500
+              }
+            }
+            if ($null -eq $homeResponse) { throw '便携服务器在 30 秒内未就绪。' }
+            if ($homeResponse.StatusCode -ne 200 -or $homeResponse.Content -notmatch 'MIAO Motion') {
+              throw '首页响应内容不正确。'
+            }
+            $help = Invoke-WebRequest 'http://127.0.0.1:4173/help.html' -UseBasicParsing -TimeoutSec 5
+            if ($help.StatusCode -ne 200) { throw '离线帮助页不可访问。' }
+            $license = Invoke-WebRequest 'http://127.0.0.1:4173/licenses/THIRD_PARTY_LICENSES.txt' -UseBasicParsing -TimeoutSec 5
+            if ($license.StatusCode -ne 200 -or $license.Content -notmatch '@mediapipe/tasks-vision') {
+              throw '第三方许可证目录不可访问。'
+            }
+            $head = Invoke-WebRequest 'http://127.0.0.1:4173/' -Method Head -UseBasicParsing -TimeoutSec 5
+            if ($head.StatusCode -ne 200) { throw 'HEAD 请求检查失败。' }
+          } finally {
+            if ($server -and -not $server.HasExited) {
+              Stop-Process -Id $server.Id -Force
+              $server.WaitForExit()
+            }
+            if (Test-Path $stdout) { Get-Content $stdout }
+            if (Test-Path $stderr) { Get-Content $stderr }
+          }
       - name: Package Node-free portable build
         shell: pwsh
         run: |
@@ -69,3 +138,5 @@ jobs:
           path: |
             MIAO-Motion-portable.zip
             MIAO-Motion-portable.zip.sha256
+          if-no-files-found: error
+          retention-days: 14
