@@ -6,6 +6,7 @@ $ErrorActionPreference = 'Stop'
 $root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot 'dist'))
 $rootBoundary = $root.TrimEnd([IO.Path]::DirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar
 $prefix = 'http://127.0.0.1:4173/'
+$skipBrowser = $NoBrowser -or $env:MIAO_MOTION_NO_BROWSER -eq '1'
 $mime = @{
   '.html' = 'text/html; charset=utf-8'; '.js' = 'text/javascript; charset=utf-8';
   '.css' = 'text/css; charset=utf-8'; '.json' = 'application/json; charset=utf-8';
@@ -19,7 +20,7 @@ try {
   $listener.Start()
   Write-Host "MIAO Motion 已启动：$prefix"
   Write-Host '关闭此窗口即可停止程序。'
-  if (-not $NoBrowser) { Start-Process $prefix }
+  if (-not $skipBrowser) { Start-Process $prefix }
   while ($listener.IsListening) {
     $context = $listener.GetContext()
     try {
@@ -51,6 +52,7 @@ try {
     }
   }
 } catch {
+  Write-Host "MIAO_PORTABLE_SERVER_ERROR: $($_.Exception.GetType().FullName): $($_.Exception.Message)"
   Write-Error "无法启动本地服务。请确认 4173 端口未被占用。$($_.Exception.Message)"
   exit 1
 } finally {

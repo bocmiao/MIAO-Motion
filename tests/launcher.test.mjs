@@ -22,5 +22,6 @@ test('portable launcher is Node-free and validates its build', () => {
   assert.match(server, /HttpListener/);
   assert.match(server, /StartsWith\(\$rootBoundary/);
   assert.match(server, /\[switch\]\$NoBrowser/);
-  assert.match(server, /if \(-not \$NoBrowser\) \{ Start-Process \$prefix \}/);
+  assert.match(server, /MIAO_MOTION_NO_BROWSER/);
+  assert.match(server, /if \(-not \$skipBrowser\) \{ Start-Process \$prefix \}/);
 });

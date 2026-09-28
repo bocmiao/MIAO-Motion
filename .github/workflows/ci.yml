@@ -87,7 +87,8 @@ jobs:
           $stdout = Join-Path $env:RUNNER_TEMP 'miao-portable-server.stdout.log'
           $stderr = Join-Path $env:RUNNER_TEMP 'miao-portable-server.stderr.log'
           $script = Join-Path $PWD 'portable-server.ps1'
-          $arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$script`" -NoBrowser"
+          $env:MIAO_MOTION_NO_BROWSER = '1'
+          $arguments = "-NoProfile -ExecutionPolicy Bypass -File `"$script`""
           $server = Start-Process powershell.exe -ArgumentList $arguments -PassThru `
             -RedirectStandardOutput $stdout -RedirectStandardError $stderr
           try {
@@ -123,6 +124,7 @@ jobs:
             }
             if (Test-Path $stdout) { Get-Content $stdout }
             if (Test-Path $stderr) { Get-Content $stderr }
+            Remove-Item Env:MIAO_MOTION_NO_BROWSER -ErrorAction SilentlyContinue
           }
       - name: Package Node-free portable build
         shell: pwsh
