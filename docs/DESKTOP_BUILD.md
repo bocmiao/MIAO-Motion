@@ -4,7 +4,7 @@
 
 ## 小白只想使用
 
-优先从 GitHub Actions 的 `MIAO-Motion-Tauri-Windows` 构建产物下载 `*-setup.exe`。当前安装包尚未代码签名，Windows 可能显示未知发布者；正式发布前必须取得证书并完成真机验证。
+从 [beta 发布页](https://github.com/bocmiao/MIAO-Motion/releases) 下载 `*-setup.exe` 和同名 SHA-256。安装包尚未签名，可能被系统阻止或显示未知发布者；不要关闭安全策略。beta 不代表真实摄像头/直播软件已验证，正式稳定版还未发布。
 
 ## 开发者从零构建
 
@@ -12,13 +12,15 @@
 2. Windows 10 1803 以后通常已有 WebView2；若缺少，从微软安装 Evergreen Runtime。
 3. 在仓库目录运行 `npm ci`。
 4. 开发调试运行 `npm run desktop:dev`。
-5. 生成 NSIS 安装包运行 `npm run desktop:build`。
+5. 先运行 `npm run build` 做全量自动检查，再运行 `npm run desktop:build -- -- --locked` 生成 NSIS 安装包（两个 `--` 分别透传 npm 和 Tauri，最后的参数属于 Cargo）。
 
-安装包位于 `src-tauri/target/release/bundle/nsis/`。前端仍会在构建前执行离线资源准备、测试和生产构建。
+安装包位于 `src-tauri/target/release/bundle/nsis/`。桌面命令构建前执行离线资源准备和网页构建，不自动重复 Node 测试；CI 的 build job 独立执行全部 Node/类型检查。
+
+版本以 `package.json` 为准：`npm version` 自动同步 Cargo manifest/lock，Tauri 读取 package 路径，网页由 Vite 注入。`tests/version.test.mjs` 防止手工更新漏项。两份 Cargo.lock 都需提交，CI 使用 --locked。
 
 ## 当前边界
 
-- CI 能证明 Rust/Tauri 代码可编译并产出 NSIS 文件，不能替代 Windows 10/11 双击、摄像头授权、安装/卸载/升级和 OBS 捕获测试。
+- CI 现会静默安装、启动并检查窗口、卸载，且验证没有控制台子系统；运行结果见 VALIDATION_STATUS。它不能替代用户桌面、相机/OBS 和升级体验。
 - `webviewInstallMode` 使用静默下载引导器；完全断网的干净机器若没有 WebView2，安装后仍可能无法启动。后续可提供带离线 WebView2 的更大安装包。
-- 目前没有签名证书和自动更新密钥。发布工作流只创建草稿 Release，不会把未经人工复核的构建自动标为正式版。
+- 目前没有签名证书和自动更新密钥。CI 可自动发布明确标识的 beta，已有同版本不覆盖；稳定 Tag 在 release.yml 中保持草稿，不自动冒充正式稳定版。
 - 透明 WebView 已配置，但“OBS 原生透明捕获可靠”仍需真机确认；默认教程继续推荐绿幕窗口捕获。

@@ -8,7 +8,7 @@ for (const [path, pattern] of [
   ['src-tauri/Cargo.lock', /(name = "miao-motion"\nversion = ")[^"]+("\n)/],
 ]) {
   const url = new URL(path, root);
-  const source = readFileSync(url, 'utf8');
+  const source = readFileSync(url, 'utf8').replaceAll('\r\n', '\n');
   if (!pattern.test(source)) throw new Error(`Missing package version in ${path}`);
   writeFileSync(url, source.replace(pattern, (_, prefix, suffix) => `${prefix}${version}${suffix}`));
 }

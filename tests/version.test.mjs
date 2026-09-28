@@ -7,5 +7,5 @@ test('desktop, npm lock and Cargo package versions follow package.json', () => {
   assert.equal(JSON.parse(read('package-lock.json')).version, version);
   assert.equal(JSON.parse(read('src-tauri/tauri.conf.json')).version, '../package.json');
   assert.equal(read('src-tauri/Cargo.toml').match(/^version = "([^"]+)"/m)[1], version);
-  assert.ok(read('src-tauri/Cargo.lock').includes(`name = "miao-motion"\nversion = "${version}"`));
+  assert.ok(read('src-tauri/Cargo.lock').replaceAll('\r\n', '\n').includes(`name = "miao-motion"\nversion = "${version}"`));
 });

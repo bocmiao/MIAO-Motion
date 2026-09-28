@@ -25,7 +25,7 @@ jobs:
           key: mediapipe-face-64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff
       - run: npm ci
       - run: npm run build
-      - run: npm run desktop:build -- --locked
+      - run: npm run desktop:build -- -- --locked
       - name: Smoke-test installed application
         shell: pwsh
         run: ./scripts/smoke-desktop.ps1
