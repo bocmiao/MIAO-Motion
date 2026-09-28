@@ -16,6 +16,7 @@ test('零基础入口、键盘导入与本地设置可用', async ({ page }) => 
   await page.locator('.advanced-settings > summary').click();
   await page.locator('#mirror-motion').uncheck();
   await page.locator('#sensitivity').fill('1.4');
+  await page.locator('.data-tools > summary').click();
 
   const download = page.waitForEvent('download');
   await page.locator('#export-settings').click();
