@@ -24,3 +24,10 @@ test('profile overwrite is atomic and deletion leaves no stale record', async ()
   assert.equal((await listStoredProfiles()).length, 1);
   await deleteStoredProfile('profile'); assert.equal((await listStoredProfiles()).length, 0);
 });
+
+test('updating a removed model rejects once, with no orphaned transaction rejection', async () => {
+  await assert.rejects(updateStoredModel('missing', { name: 'renamed.vrm' }), /找不到模型记录/);
+  // Node's test runner also fails this test on any later unhandled rejection.
+  const saved = await putStoredModel(new File(['after abort'], 'recover.vrm'));
+  await deleteStoredModel(saved.id);
+});

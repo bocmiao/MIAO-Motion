@@ -68,3 +68,32 @@ for (const delayed of ['loader', 'storage']) {
     await expect(page.locator('#model-name')).toHaveText('newest');
   });
 }
+
+test('deleting the old model cannot clear a newer import after delayed completion', async ({ page }) => {
+  await page.goto('/'); await page.locator('#onboarding-later').click();
+  await page.locator('#model-file').setInputFiles(fixture);
+  await expect(page.locator('#import-model')).toBeEnabled();
+  await expect(page.locator('#model-status')).toContainText('模型可用');
+  await page.locator('.advanced-settings > summary').click();
+  await page.evaluate(() => {
+    const original = IDBObjectStore.prototype.delete;
+    IDBObjectStore.prototype.delete = function (...args) {
+      this.transaction.__delayDelete = true;
+      return original.apply(this, args);
+    };
+    const descriptor = Object.getOwnPropertyDescriptor(IDBTransaction.prototype, 'oncomplete');
+    Object.defineProperty(IDBTransaction.prototype, 'oncomplete', { ...descriptor, set(handler) {
+      const delay = this.__delayDelete;
+      descriptor.set.call(this, delay ? event => { window.__deleting = true; setTimeout(() => handler.call(this, event), 1000); } : handler);
+    } });
+  });
+  page.on('dialog', dialog => dialog.accept());
+  await page.locator('#delete-library-model').click();
+  await expect.poll(() => page.evaluate(() => Boolean(window.__deleting))).toBe(true);
+  await page.locator('#model-file').setInputFiles({ name: 'newest.vrm', mimeType: 'model/vrm', buffer: await readFile(fixture) });
+  await expect(page.locator('#model-name')).toHaveText('newest');
+  await expect(page.locator('#import-model')).toBeEnabled();
+  await page.waitForTimeout(1200);
+  await expect(page.locator('#model-name')).toHaveText('newest');
+  await expect(page.locator('#broadcast-toggle')).toBeEnabled();
+});

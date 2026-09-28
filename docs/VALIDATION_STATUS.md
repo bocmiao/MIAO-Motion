@@ -12,8 +12,9 @@
 | 透明 | omitBackground 截图四角 alpha=0 | 通过；不等于原生窗口/会议软件支持 alpha |
 | 生命周期 | 伪相机、识别器故障注入、track ended、Blob/数据库完成延迟 | 通过 |
 | 存储/引导 | 事务去重、旧 Blob 迁移清理、单项重新载入、跳过模型/摄像头并刷新 | 通过 |
-| 开发 CSP | 真实 Vite dev CSS 与安全策略；生产仍严格 | 待最终全量运行 |
-| Node/类型/构建/依赖 | npm run build 与 npm audit | 待最终全量运行 |
+| 开发 CSP | 真实 Vite dev CSS 与安全策略；生产仍严格 | 通过 |
+| Node/类型/构建/依赖 | npm run build 与 npm audit | 35 项 Node、TypeScript、Vite 通过；运行时依赖 0 漏洞 |
+| 删除/读取失败 | 延迟删除不能覆盖新导入；不存在记录只拒绝一次且可继续保存 | Node 与故障注入 E2E 通过 |
 
 ## Windows CI 本轮新增检查
 
@@ -22,7 +23,7 @@
 - Rust/Tauri --locked 编译；安装 NSIS 后检查 GUI 子系统、进程与窗口，再卸载。
 - 独立虚拟摄像头 API 探针编译/调用；不注册摄像头，不代表已可传帧。
 
-状态：待本轮提交触发。历史 CI #37 仅证明旧版可编译和上传，不能证明本轮通过。
+执行记录：CI #40 的 API 探针已编译/运行并输出 software_camera_supported=true；#40 同时暴露 Windows 换行符测试与 Cargo 参数透传错误，已修复。CI #41 的 build、15 条浏览器流程和普通账户便携产物测试已通过；桌面构建仍在运行。最终源码新增删除失败/竞态修复，会再完整运行 CI；不以中间结果预先标记全部通过。
 
 ## 不能推导的结论
 

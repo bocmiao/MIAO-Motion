@@ -1,5 +1,7 @@
 # Claude 项目审计整改对照表
 
+> 第一轮历史记录。第二轮发现直播布局、眼神/VRM0 方向和异步完成检查仍有缺陷，因此本页“完成”不代表最终验证。当前请看 [第二轮整改记录](CLAUDE_ROUND2_REMEDIATION.md) 与 [实际验证状态](VALIDATION_STATUS.md)。
+
 > 整改日期：2026-09-28
 >
 > 审计来源：[`claude审计报告.md`](claude审计报告.md)

@@ -55,11 +55,11 @@ jobs:
           PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT: 120000
         run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
-      - name: Upload browser failure evidence
-        if: failure()
+      - name: Upload browser visual and failure evidence
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-failure-${{ github.run_id }}
+          name: playwright-evidence-${{ github.run_id }}
           path: |
             playwright-report/
             test-results/
@@ -174,6 +174,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           tag="v$(node -p 'JSON.parse(require("fs").readFileSync("package.json")).version')-beta"
+          latest=$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq .sha)
+          if [ "$latest" != "$GITHUB_SHA" ]; then
+            echo 'A newer main commit exists; this older candidate will not be published.'
+            exit 0
+          fi
           gh release list --limit 100 --json tagName > /tmp/miao-releases.json
           if node -e 'process.exit(JSON.parse(require("fs").readFileSync("/tmp/miao-releases.json")).some(x=>x.tagName===process.argv[1])?0:1)' "$tag"; then
             echo "Existing $tag is preserved; bump version to publish a new beta."

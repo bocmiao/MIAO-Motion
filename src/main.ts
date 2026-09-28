@@ -360,9 +360,9 @@ const refreshModelLibrary = async () => {
     : [new Option('尚无已保存角色', '')]));
   const active = storedModels.find((model) => model.id === currentModelId) ?? storedModels[0];
   modelLibrary.value = active?.id ?? '';
-  renameModelButton.disabled = !active;
+  renameModelButton.disabled = !active || importButton.disabled;
   loadModelButton.disabled = !active || importButton.disabled;
-  deleteLibraryModelButton.disabled = !active;
+  deleteLibraryModelButton.disabled = !active || importButton.disabled;
   modelThumbnail.hidden = !active?.thumbnail;
   if (active?.thumbnail) modelThumbnail.src = active.thumbnail;
 };
@@ -385,6 +385,12 @@ const loadStoredModel = async (id: string, restored = false) => {
     const loaded = await loadVrm(new File([stored.data], stored.name, { type: stored.type }), false, stored.id);
     if (loaded && restored) showToast('已恢复上次使用的角色和设置');
     return loaded;
+  } catch (error) {
+    if (generation === loadGeneration) {
+      addDiagnosticEvent('model-library-load-error', error);
+      showToast('无法读取本地角色，请重新导入原始 VRM');
+    }
+    return false;
   } finally {
     if (generation === loadGeneration) {
       importButton.disabled = modelLibrary.disabled = false;
@@ -1019,11 +1025,18 @@ deleteLibraryModelButton.addEventListener('click', () => {
   const id = modelLibrary.value;
   if (!id || !window.confirm('删除这个浏览器中保存的角色副本？原始 VRM 文件不会删除。')) return;
   const active = id === currentModelId;
+  const generation = loadGeneration;
   void deleteStoredModel(id).then(async () => {
+    if (generation !== loadGeneration) {
+      if (!importButton.disabled) await refreshModelLibrary();
+      showToast('旧角色副本已删除，保留正在使用的新角色');
+      return;
+    }
     if (active) await removeCurrentModel(false);
+    const afterRemoval = loadGeneration;
     await refreshModelLibrary();
     const next = storedModels[0];
-    if (active && next) await loadStoredModel(next.id);
+    if (active && next && afterRemoval === loadGeneration && !currentVrm) await loadStoredModel(next.id);
     showToast('角色副本已删除');
   }).catch((error) => {
     addDiagnosticEvent('model-delete-error', error);

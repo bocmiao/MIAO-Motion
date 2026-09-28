@@ -45,7 +45,7 @@ function complete(transaction) {
   return new Promise((resolve, reject) => {
     transaction.oncomplete = () => resolve();
     transaction.onerror = () => reject(transaction.error);
-    transaction.onabort = () => reject(transaction.error);
+    transaction.onabort = () => reject(transaction.error ?? new DOMException('本地保存事务已取消', 'AbortError'));
   });
 }
 
@@ -76,7 +76,7 @@ export async function putStoredModel(file, id) {
     const transaction = db.transaction('models', 'readwrite');
     const done = complete(transaction);
     const store = transaction.objectStore('models');
-    const value = await new Promise((resolve, reject) => {
+    const [value] = await Promise.all([new Promise((resolve, reject) => {
       const request = store.getAll();
       request.onsuccess = () => {
         const previous = request.result.find(model => id ? model.id === id : model.sourceName === file.name && model.size === file.size && model.lastModified === file.lastModified);
@@ -85,8 +85,7 @@ export async function putStoredModel(file, id) {
         resolve(model);
       };
       request.onerror = () => reject(request.error);
-    });
-    await done;
+    }), done]);
     return value;
   } finally { db.close(); }
 }
@@ -97,7 +96,7 @@ export async function updateStoredModel(id, changes) {
     const transaction = db.transaction('models', 'readwrite');
     const store = transaction.objectStore('models');
     const done = complete(transaction);
-    await new Promise((resolve, reject) => {
+    await Promise.all([new Promise((resolve, reject) => {
       const request = store.get(id);
       request.onsuccess = () => {
         if (!request.result) {
@@ -109,8 +108,7 @@ export async function updateStoredModel(id, changes) {
         resolve();
       };
       request.onerror = () => reject(request.error);
-    });
-    await done;
+    }), done]);
   } finally { db.close(); }
 }
 
