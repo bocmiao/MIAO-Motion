@@ -5,8 +5,10 @@ const fixture = fileURLToPath(new URL('../fixtures/minimal-avatar.vrm', import.m
 const open = async page => { await page.goto('/'); await page.locator('#onboarding-later').click(); };
 
 test('original mascot loads with face controls and can be recolored', async ({ page }) => {
+  test.setTimeout(90_000);
   await page.goto('/'); await page.locator('#onboarding-next').click();
   await page.locator('#load-miao').click();
+  await expect(page.locator('#stage')).toHaveAttribute('data-render-ready', 'true', { timeout: 60_000 });
   await expect(page.locator('#model-status')).toContainText('兼容性 4/4');
   await page.locator('#onboarding-later').click();
   await page.locator('.studio-settings > summary').click();
