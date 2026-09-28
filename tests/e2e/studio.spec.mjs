@@ -80,6 +80,29 @@ test('download page follows published assets and falls back when offline', async
   await expect(page.getByText('打开官方下载列表')).toBeVisible();
 });
 
+test('a model save failure cannot overwrite the previous character color preferences', async ({ page }) => {
+  await open(page);
+  await page.locator('#model-file').setInputFiles(fixture);
+  await expect(page.locator('#import-model')).toBeEnabled();
+  await page.locator('.studio-settings > summary').click();
+  await page.locator('#avatar-color').fill('#123456');
+  const before = await page.evaluate(() => Object.fromEntries(Object.entries(localStorage).filter(([key]) => key.startsWith('miao-appearance-'))));
+  await page.evaluate(() => {
+    for (const name of ['add', 'put']) {
+      const original = IDBObjectStore.prototype[name];
+      IDBObjectStore.prototype[name] = function (...args) {
+        if (this.name === 'models') throw new DOMException('Injected storage full', 'QuotaExceededError');
+        return original.apply(this, args);
+      };
+    }
+  });
+  await page.locator('#model-file').setInputFiles(fileURLToPath(new URL('../fixtures/minimal-avatar-v0.vrm', import.meta.url)));
+  await expect(page.locator('#toast')).toContainText('空间不足');
+  await expect(page.locator('#import-model')).toBeEnabled();
+  await page.locator('#avatar-color').fill('#aabbcc');
+  expect(await page.evaluate(() => Object.fromEntries(Object.entries(localStorage).filter(([key]) => key.startsWith('miao-appearance-'))))).toEqual(before);
+});
+
 test('offline body and hand engines start and release on camera stop', async ({ page }) => {
   test.setTimeout(90_000);
   const external = [];

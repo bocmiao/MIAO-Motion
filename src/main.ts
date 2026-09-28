@@ -549,6 +549,8 @@ const loadVrm = async (file: File, persist = true, storedId = '') => {
 
     bodyTracking.resetPose();
     currentVrm = vrm;
+    // A failed save must not attach the new avatar's colors to the old library entry.
+    currentModelId = '';
     replaced = true;
     thumbnailPendingId = '';
     scene.add(vrm.scene);
