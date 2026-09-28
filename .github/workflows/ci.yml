@@ -120,7 +120,8 @@ jobs:
             function Get-HttpStatus([string]$Uri, [string]$Method = 'GET') {
               try {
                 return (Invoke-WebRequest $Uri -Method $Method -UseBasicParsing -TimeoutSec 5).StatusCode
-              } catch [System.Net.WebException] {
+              } catch {
+                if ($null -eq $_.Exception.Response) { throw }
                 return [int]$_.Exception.Response.StatusCode
               }
             }
