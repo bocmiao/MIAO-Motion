@@ -18,7 +18,7 @@
 
 ## Windows 小白启动方法
 
-1. 安装 [Node.js 20 LTS 或更新版本](https://nodejs.org/zh-cn)。
+1. 安装 [Node.js 22 LTS 或更新版本](https://nodejs.org/zh-cn)。
 2. 下载并解压本仓库。
 3. 双击 `start-windows.bat`。
 4. 浏览器打开后，点击“选择 VRM”，再点击“开启摄像头”。
@@ -28,7 +28,7 @@
 
 ## 开发者启动方法
 
-需要 Node.js 20 或更高版本：
+需要 Node.js 22 或更高版本：
 
 ```bash
 npm install
@@ -83,4 +83,3 @@ http://127.0.0.1:4173/?broadcast=1&background=transparent
 - 模型保存在当前浏览器的 IndexedDB 中。
 - 摄像头帧仅交给当前设备上的 MediaPipe 推理。
 - 建议只通过 `127.0.0.1` 启动，不要暴露到公网。
-
