@@ -18,8 +18,8 @@ $listener = [Net.HttpListener]::new()
 $listener.Prefixes.Add($prefix)
 try {
   $listener.Start()
-  Write-Host "MIAO Motion 已启动：$prefix"
-  Write-Host '关闭此窗口即可停止程序。'
+  Write-Host "MIAO Motion is running: $prefix"
+  Write-Host 'Close this window to stop MIAO Motion.'
   if (-not $skipBrowser) { Start-Process $prefix }
   while ($listener.IsListening) {
     $context = $listener.GetContext()
@@ -53,7 +53,7 @@ try {
   }
 } catch {
   Write-Host "MIAO_PORTABLE_SERVER_ERROR: $($_.Exception.GetType().FullName): $($_.Exception.Message)"
-  Write-Error "无法启动本地服务。请确认 4173 端口未被占用。$($_.Exception.Message)"
+  Write-Error "Unable to start the local server on port 4173. $($_.Exception.Message)"
   exit 1
 } finally {
   $listener.Close()
