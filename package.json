@@ -1,14 +1,17 @@
 {
   "name": "miao-motion",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
-    "preview": "vite preview"
+    "test": "node tests/motion.test.mjs",
+    "build": "npm test && tsc --noEmit && vite build",
+    "start": "vite preview --host 127.0.0.1 --port 4173 --strictPort",
+    "preview": "npm run start"
   },
   "dependencies": {
+    "@mediapipe/tasks-vision": "^1.0.1",
     "@pixiv/three-vrm": "^3.5.1",
     "three": "^0.183.2"
   },
@@ -21,4 +24,3 @@
     "node": ">=20"
   }
 }
-

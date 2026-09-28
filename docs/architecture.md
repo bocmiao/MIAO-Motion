@@ -1,37 +1,51 @@
 # Architecture
 
-## Current spike
-
-The first runnable spike deliberately uses a single Vite application:
+## v0.2.0 runtime
 
 ```text
-camera permission ─┐
-                   ├─ browser UI
-VRM file → three-vrm → Three.js preview
+VRM file → validation → IndexedDB → three-vrm → Three.js renderer
+camera → MediaPipe Face Landmarker → smoothing/calibration → VRM bones + expressions
+                                                    └────→ preview / broadcast canvas
 ```
 
-This proves local file handling, VRM rendering, camera permissions and WebGL performance before adding a desktop shell.
+The first runnable release stays a single Vite application. There is no server-side processing, account system, database server, WebSocket layer or desktop shell.
 
-## Planned local pipeline
+## Components
 
-```text
-camera → MediaPipe Tasks Worker → motion solver → filters/calibration
-                                              → VRM mapping → preview
-                                              → local state → OBS Browser Source
-```
+- `src/main.ts`: camera, MediaPipe lifecycle, VRM loading, rendering, persistence and UI state.
+- `src/motion.mjs`: pure blendshape mapping and frame-rate independent damping.
+- `tests/motion.test.mjs`: dependency-free solver checks using Node's built-in assertions.
+- IndexedDB `miao-motion/assets/current-vrm`: last successfully imported avatar.
 
-## Decisions
+## Motion mapping
 
-- Windows is the first supported platform.
-- VRM 0.x and 1.0 are the first avatar formats.
-- MediaPipe Tasks Vision replaces the deprecated Kalidokit/legacy Holistic path.
-- OBS remains a separate application and is controlled over its WebSocket protocol.
-- The desktop-shell decision between Tauri and Electron follows measured spike results.
-- JSON is enough for early local configuration; SQLite is deferred until a real indexing or migration need appears.
+- MediaPipe facial transformation matrix → calibrated VRM normalized head bone quaternion.
+- `eyeBlinkLeft/Right` → VRM separate blink expressions, or combined blink fallback.
+- `jawOpen` + `mouthFunnel/Pucker` → VRM `aa` and `oh`.
+- `mouthSmileLeft/Right` → VRM `happy` with reduced weight.
+- eye look blendshapes → VRM look expressions when supplied by the model.
+
+Missing optional expressions are ignored. The model doctor reports the gap instead of preventing the rest of the avatar from working.
+
+## Broadcast modes
+
+- Normal UI: configuration, camera preview and model diagnostics.
+- In-page broadcast: full-window canvas; Escape or double click exits.
+- `?broadcast=1&background=transparent`: minimal OBS browser-source page that restores the saved VRM and requests the camera.
+- Green background: fallback for OBS window capture with a chroma-key filter.
 
 ## Security boundaries
 
-- Core functionality must work offline.
-- Future local services bind only to `127.0.0.1` and use per-session tokens.
-- Raw frames, audio and avatar files are not included in logs or crash reports.
+- Runtime server binds to `127.0.0.1`.
+- Raw frames are not stored, logged or uploaded.
+- Imported VRM data is stored only in the browser origin's IndexedDB.
+- Remote MediaPipe WASM and model URLs are pinned to an explicit package/model version.
+- No telemetry or crash upload exists.
 
+## Deferred until measured need
+
+- Body and hand landmarkers.
+- Tauri/Electron desktop wrapper.
+- OBS WebSocket automation.
+- Built-in avatar catalogue and character editor.
+- Worker-based inference; the main-thread implementation is retained until real profiling shows dropped rendering frames.
