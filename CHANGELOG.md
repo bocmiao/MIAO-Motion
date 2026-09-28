@@ -48,6 +48,7 @@
 - 构建产物包含运行时依赖、Face Landmarker 和 MPL-2.0 许可文本。
 - CI 缓存 Chromium、延长下载超时并在失败时保留 trace；重复分支运行自动取消旧任务。
 - Windows CI 实际启动 Node-free 便携服务器，验证首页、离线帮助、许可证和 HEAD 请求后再打包。
+- Dependabot 聚合小版本/补丁、忽略未经单独迁移的跨大版本；Three.js 与类型定义更新至已验证的 0.186 系列。
 
 ### 待验证
 
