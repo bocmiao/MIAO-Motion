@@ -1,0 +1,29 @@
+name: 功能建议
+description: 从真实用户问题出发提出最小功能建议。
+title: "[功能] "
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 遇到的问题
+      description: 先描述场景和阻碍，不要只写功能名称。
+    validations:
+      required: true
+  - type: textarea
+    id: workaround
+    attributes:
+      label: 当前替代办法
+  - type: textarea
+    id: result
+    attributes:
+      label: 最小可验收结果
+      description: 完成什么行为就算真正解决？
+    validations:
+      required: true
+  - type: dropdown
+    id: users
+    attributes:
+      label: 主要受益用户
+      options: [第一次使用的新手, 已有 VRM 的主播, OBS 熟练用户, 开发者, 其他]
+    validations:
+      required: true

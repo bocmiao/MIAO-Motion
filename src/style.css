@@ -17,7 +17,7 @@ body {
     #f3f0e9;
 }
 
-button, input { font: inherit; }
+button, input, select { font: inherit; }
 button { cursor: pointer; }
 button:disabled { cursor: not-allowed; opacity: 0.42; }
 [hidden] { display: none !important; }
@@ -93,7 +93,7 @@ button:disabled { cursor: not-allowed; opacity: 0.42; }
 
 .control-panel { display: grid; align-content: start; gap: 10px; }
 
-.step-card, .tracking-card, .model-doctor, .broadcast-controls {
+.step-card, .tracking-card, .motion-settings, .model-doctor, .broadcast-controls {
   border: 1px solid rgba(38, 43, 54, 0.09);
   border-radius: 19px;
   background: rgba(255, 255, 255, 0.74);
@@ -135,11 +135,21 @@ button:focus-visible, .stage:focus-visible { outline: 3px solid #e5a13e; outline
 .tracking-title { display: flex; align-items: center; gap: 8px; }
 .tracking-card p { grid-column: 1 / -1; margin: 3px 0; color: #687080; font-size: 13px; }
 .tracking-card .text-button { grid-column: 1 / -1; }
+.quality-row { grid-column: 1 / -1; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 9px; color: #687080; font-size: 12px; }
+.quality-row meter { width: 100%; height: 10px; }
+.quality-row output { min-width: 48px; text-align: right; font-weight: 750; }
 .status-dot { width: 9px; height: 9px; border-radius: 50%; background: #aab0bb; box-shadow: 0 0 0 4px rgba(170, 176, 187, 0.14); }
 .status-dot[data-state="loading"] { background: #d99a35; animation: pulse 1s infinite; }
 .status-dot[data-state="ready"] { background: #4a82d2; }
 .status-dot[data-state="active"] { background: #35a96a; box-shadow: 0 0 0 4px rgba(53, 169, 106, 0.15); }
 .status-dot[data-state="lost"], .status-dot[data-state="error"] { background: #cf5550; }
+
+.motion-settings { padding: 15px 16px; display: grid; gap: 10px; }
+.motion-settings > label { display: grid; grid-template-columns: 74px minmax(0, 1fr) auto; align-items: center; gap: 10px; color: #687080; font-size: 12px; }
+.motion-settings select { min-width: 0; grid-column: 2 / -1; padding: 8px 9px; border: 1px solid #d9d7d0; border-radius: 9px; color: #353b48; background: #fff; }
+.motion-settings input[type="range"] { width: 100%; accent-color: #b87320; }
+.motion-settings output { min-width: 38px; text-align: right; color: #353b48; font-weight: 750; }
+.motion-settings small { margin-top: -5px; color: #858b96; font-size: 11px; line-height: 1.35; }
 
 .model-doctor { padding: 15px 16px; }
 .model-doctor > div { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
@@ -198,7 +208,7 @@ footer { min-height: 58px; display: flex; align-items: center; justify-content: 
 @media (max-width: 900px) {
   .workspace { grid-template-columns: 1fr; }
   .control-panel { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .tracking-card, .model-doctor, .broadcast-controls { min-height: 120px; }
+  .tracking-card, .motion-settings, .model-doctor, .broadcast-controls { min-height: 120px; }
   .stage-card { min-height: 550px; }
 }
 
@@ -208,7 +218,7 @@ footer { min-height: 58px; display: flex; align-items: center; justify-content: 
   .intro { padding-top: 24px; }
   .control-panel { grid-template-columns: 1fr; }
   .step-card { grid-template-columns: 34px minmax(0, 1fr) auto; }
-  .tracking-card, .model-doctor, .broadcast-controls { min-height: auto; }
+  .tracking-card, .motion-settings, .model-doctor, .broadcast-controls { min-height: auto; }
   .stage-card { min-height: 480px; border-radius: 21px; }
   .stage { min-height: 420px; }
   footer { align-items: flex-start; flex-direction: column; justify-content: center; }

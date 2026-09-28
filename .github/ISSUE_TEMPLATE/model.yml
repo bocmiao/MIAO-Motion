@@ -1,0 +1,40 @@
+name: 模型兼容问题
+description: 报告某类合法 VRM 的骨骼、表情或加载问题。
+title: "[模型兼容] "
+body:
+  - type: dropdown
+    id: vrm-version
+    attributes:
+      label: VRM 版本
+      options: [VRM 0.x, VRM 1.0, 不清楚]
+    validations:
+      required: true
+  - type: input
+    id: exporter
+    attributes:
+      label: 导出工具与版本
+      placeholder: VRoid Studio 2.x
+  - type: checkboxes
+    id: symptoms
+    attributes:
+      label: 问题表现
+      options:
+        - label: 无法加载
+        - label: 头部方向错误
+        - label: 眨眼或左右眼错误
+        - label: 嘴型或微笑错误
+        - label: 视线错误
+        - label: 性能异常
+  - type: textarea
+    id: doctor
+    attributes:
+      label: 模型检查结果与复现步骤
+    validations:
+      required: true
+  - type: checkboxes
+    id: rights
+    attributes:
+      label: 授权确认
+      options:
+        - label: 我不会公开上传无再分发许可的模型或贴图。
+          required: true

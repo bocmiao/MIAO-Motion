@@ -1,11 +1,14 @@
 {
   "name": "miao-motion",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "type": "module",
   "scripts": {
+    "prepare:assets": "node scripts/prepare-mediapipe.mjs",
+    "predev": "npm run prepare:assets",
     "dev": "vite",
-    "test": "node tests/motion.test.mjs",
+    "pretest": "npm run prepare:assets",
+    "test": "node --test tests/*.test.mjs",
     "build": "npm test && tsc --noEmit && vite build",
     "start": "vite preview --host 127.0.0.1 --port 4173 --strictPort",
     "preview": "npm run start"

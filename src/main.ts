@@ -1,6 +1,6 @@
 import './style.css';
 import * as THREE from 'three';
-import { FaceLandmarker, FilesetResolver, type Category, type FaceLandmarkerResult } from '@mediapipe/tasks-vision';
+import type { Category, FaceLandmarker, FaceLandmarkerResult } from '@mediapipe/tasks-vision';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import {
@@ -11,11 +11,21 @@ import {
   VRMUtils,
 } from '@pixiv/three-vrm';
 import { damping, lerpMotion, solveExpressions } from './motion.mjs';
+import {
+  cameraConstraints,
+  cameraErrorMessage,
+  parseSettings,
+  scaleMotion,
+  trackingQuality,
+  validateModelFile,
+  type AppSettings,
+  type Background,
+} from './app-utils.mjs';
 
-const MEDIAPIPE_VERSION = '1.0.1';
-const WASM_URL = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MEDIAPIPE_VERSION}/wasm`;
-const MODEL_URL = 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task';
+const WASM_URL = new URL('./mediapipe/', document.baseURI).href;
+const MODEL_URL = new URL('./mediapipe/face_landmarker.task', document.baseURI).href;
 const MAX_MODEL_SIZE = 200 * 1024 * 1024;
+const SETTINGS_KEY = 'miao-motion-settings-v1';
 const EMPTY_MOTION = {
   blinkLeft: 0,
   blinkRight: 0,
@@ -29,7 +39,6 @@ const EMPTY_MOTION = {
 };
 
 type Motion = typeof EMPTY_MOTION;
-type Background = 'studio' | 'green' | 'transparent';
 type StoredModel = { name: string; type: string; data: ArrayBuffer };
 
 const required = <T extends Element>(selector: string): T => {
@@ -50,19 +59,33 @@ const cameraStatus = required<HTMLElement>('#camera-status');
 const cameraPreview = required<HTMLVideoElement>('#camera-preview');
 const trackingStatus = required<HTMLElement>('#tracking-status');
 const trackingDot = required<HTMLElement>('#tracking-dot');
+const trackingMeter = required<HTMLMeterElement>('#tracking-quality');
+const trackingQualityLabel = required<HTMLOutputElement>('#tracking-quality-label');
 const calibrateButton = required<HTMLButtonElement>('#calibrate');
+const cameraSelect = required<HTMLSelectElement>('#camera-select');
+const sensitivityInput = required<HTMLInputElement>('#sensitivity');
+const sensitivityValue = required<HTMLOutputElement>('#sensitivity-value');
 const backgroundButton = required<HTMLButtonElement>('#background-toggle');
 const broadcastButton = required<HTMLButtonElement>('#broadcast-toggle');
 const obsButton = required<HTMLButtonElement>('#copy-obs-url');
 const diagnostics = required<HTMLElement>('#diagnostics');
 const toast = required<HTMLElement>('#toast');
 
+const readSettings = () => {
+  try { return parseSettings(localStorage.getItem(SETTINGS_KEY)); } catch { return parseSettings(null); }
+};
+let settings: AppSettings = readSettings();
+
+const saveSettings = () => {
+  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch { /* Private contexts may block storage. */ }
+};
+
 const params = new URLSearchParams(location.search);
 const startsInBroadcastMode = params.get('broadcast') === '1';
 const requestedBackground = params.get('background');
 let background: Background = requestedBackground === 'green' || requestedBackground === 'transparent'
   ? requestedBackground
-  : 'studio';
+  : settings.background;
 
 const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, powerPreference: 'high-performance' });
 renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -126,6 +149,31 @@ const showToast = (message: string) => {
 const setTrackingState = (state: 'idle' | 'loading' | 'ready' | 'active' | 'lost' | 'error', message: string) => {
   trackingStatus.textContent = message;
   trackingDot.dataset.state = state;
+};
+
+const setTrackingQuality = (fps = 0, visible = false) => {
+  const quality = trackingQuality(fps, visible);
+  trackingMeter.value = quality.value;
+  trackingMeter.dataset.level = quality.level;
+  trackingQualityLabel.value = quality.label;
+};
+
+const refreshCameras = async () => {
+  if (!navigator.mediaDevices?.enumerateDevices) return;
+  try {
+    const cameras = (await navigator.mediaDevices.enumerateDevices()).filter((device) => device.kind === 'videoinput');
+    const selectedId = cameraSelect.value || settings.cameraId;
+    cameraSelect.replaceChildren(new Option('系统默认摄像头', ''));
+    cameras.forEach((device, index) => cameraSelect.add(new Option(device.label || `摄像头 ${index + 1}`, device.deviceId)));
+    if (selectedId && cameras.some((device) => device.deviceId === selectedId)) {
+      cameraSelect.value = selectedId;
+    } else if (selectedId) {
+      settings = { ...settings, cameraId: '' };
+      saveSettings();
+    }
+  } catch (error) {
+    console.warn('无法读取摄像头列表', error);
+  }
 };
 
 const frameModel = (object: THREE.Object3D) => {
@@ -194,12 +242,9 @@ const inspectModel = (vrm: VRM) => {
 };
 
 const loadVrm = async (file: File, persist = true) => {
-  if (!file.name.toLowerCase().endsWith('.vrm')) {
-    setModelStatus('请选择 .vrm 模型文件', 'error');
-    return;
-  }
-  if (file.size > MAX_MODEL_SIZE) {
-    setModelStatus('模型超过 200 MB，请先压缩纹理', 'error');
+  const validationError = validateModelFile(file, MAX_MODEL_SIZE);
+  if (validationError) {
+    setModelStatus(validationError, 'error');
     return;
   }
 
@@ -229,10 +274,13 @@ const loadVrm = async (file: File, persist = true) => {
     calibrateButton.disabled = !cameraStream;
     broadcastButton.disabled = false;
     obsButton.disabled = false;
-    if (persist) void saveModel(file).catch((error) => console.warn('无法保存模型', error));
+    if (persist) void saveModel(file).catch((error) => {
+      console.warn('无法保存模型', error);
+      showToast('角色已加载，但浏览器空间不足，刷新后需要重新导入');
+    });
   } catch (error) {
     console.error(error);
-    setModelStatus(error instanceof Error ? error.message : '模型加载失败', 'error');
+    setModelStatus('模型解析失败：请确认文件完整且为 VRM 0.x/1.0', 'error');
   } finally {
     URL.revokeObjectURL(objectUrl);
     fileInput.value = '';
@@ -241,6 +289,7 @@ const loadVrm = async (file: File, persist = true) => {
 
 const createDetector = async () => {
   setTrackingState('loading', '正在加载动捕引擎（首次约数秒）');
+  const { FaceLandmarker, FilesetResolver } = await import('@mediapipe/tasks-vision');
   const vision = await FilesetResolver.forVisionTasks(WASM_URL);
   const options = {
     baseOptions: { modelAssetPath: MODEL_URL, delegate: 'GPU' as const },
@@ -285,6 +334,11 @@ const stopCamera = () => {
   cameraStatus.textContent = '尚未开启';
   cameraButton.textContent = '开启摄像头';
   calibrateButton.disabled = true;
+  faceVisible = false;
+  targetMotion = { ...EMPTY_MOTION };
+  detectedFrames = 0;
+  lastFpsAt = performance.now();
+  setTrackingQuality();
   setTrackingState(faceLandmarker ? 'ready' : 'idle', faceLandmarker ? '引擎已就绪' : '等待开启摄像头');
 };
 
@@ -295,15 +349,14 @@ const startCamera = async () => {
   }
 
   cameraButton.disabled = true;
+  cameraSelect.disabled = true;
   cameraStatus.textContent = '正在请求权限…';
+  let stream: MediaStream | null = null;
+  let detectorReady = false;
   try {
-    const [stream] = await Promise.all([
-      navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30, max: 30 }, facingMode: 'user' },
-        audio: false,
-      }),
-      ensureDetector(),
-    ]);
+    stream = await navigator.mediaDevices.getUserMedia(cameraConstraints(cameraSelect.value));
+    await ensureDetector();
+    detectorReady = true;
     cameraStream = stream;
     cameraPreview.srcObject = stream;
     await cameraPreview.play();
@@ -312,12 +365,25 @@ const startCamera = async () => {
     cameraButton.textContent = '关闭摄像头';
     calibrateButton.disabled = !currentVrm;
     setTrackingState('ready', '请正对摄像头');
+    const activeCameraId = stream.getVideoTracks()[0]?.getSettings().deviceId ?? cameraSelect.value;
+    if (activeCameraId) {
+      settings = { ...settings, cameraId: activeCameraId };
+      saveSettings();
+    }
+    await refreshCameras();
   } catch (error) {
     console.error(error);
+    stream?.getTracks().forEach((track) => track.stop());
     stopCamera();
-    cameraStatus.textContent = '启动失败，请允许摄像头并检查网络';
+    if (stream && !detectorReady) {
+      cameraStatus.textContent = '摄像头可用，但动捕引擎未能加载';
+      setTrackingState('error', '动捕引擎加载失败：请检查网络后重试');
+    } else {
+      cameraStatus.textContent = cameraErrorMessage(error);
+    }
   } finally {
     cameraButton.disabled = false;
+    cameraSelect.disabled = false;
   }
 };
 
@@ -343,11 +409,13 @@ const processDetection = (result: FaceLandmarkerResult) => {
     neutralHead.copy(head);
     hasNeutral = true;
   }
-  targetMotion = solveExpressions(categories as Category[]) as Motion;
+  targetMotion = scaleMotion(solveExpressions(categories as Category[]) as Motion, settings.sensitivity);
   lastDetectionAt = performance.now();
   detectedFrames += 1;
   if (!faceVisible) {
     faceVisible = true;
+    lastFpsAt = performance.now();
+    detectedFrames = 1;
     setTrackingState('active', '正在驱动角色');
   }
 };
@@ -384,9 +452,9 @@ const applyMotion = (delta: number) => {
   const head = currentVrm.humanoid.getNormalizedBoneNode(VRMHumanBoneName.Head);
   if (head && hasNeutral) {
     const offset = new THREE.Euler(
-      THREE.MathUtils.clamp(latestHead.x - neutralHead.x, -0.65, 0.65),
-      THREE.MathUtils.clamp(latestHead.y - neutralHead.y, -0.85, 0.85),
-      THREE.MathUtils.clamp(latestHead.z - neutralHead.z, -0.5, 0.5),
+      THREE.MathUtils.clamp((latestHead.x - neutralHead.x) * settings.sensitivity, -0.65, 0.65),
+      THREE.MathUtils.clamp((latestHead.y - neutralHead.y) * settings.sensitivity, -0.85, 0.85),
+      THREE.MathUtils.clamp((latestHead.z - neutralHead.z) * settings.sensitivity, -0.5, 0.5),
       'YXZ',
     );
     headTarget.copy(headRest).multiply(new THREE.Quaternion().setFromEuler(offset));
@@ -409,11 +477,15 @@ const applyBackground = () => {
   backgroundButton.textContent = background === 'studio' ? '背景：影棚' : background === 'green' ? '背景：绿幕' : '背景：透明';
 };
 
+let backgroundBeforeBroadcast: Background | null = null;
 const enterBroadcast = () => {
   document.body.classList.add('broadcast-mode');
   cameraPreview.hidden = true;
   broadcastButton.textContent = '退出直播画面';
-  if (background === 'studio') background = 'transparent';
+  if (background === 'studio') {
+    backgroundBeforeBroadcast = background;
+    background = 'transparent';
+  }
   applyBackground();
 };
 
@@ -421,6 +493,11 @@ const exitBroadcast = () => {
   document.body.classList.remove('broadcast-mode');
   cameraPreview.hidden = !cameraStream;
   broadcastButton.textContent = '进入直播画面';
+  if (backgroundBeforeBroadcast) {
+    background = backgroundBeforeBroadcast;
+    backgroundBeforeBroadcast = null;
+    applyBackground();
+  }
 };
 
 importButton.addEventListener('click', () => fileInput.click());
@@ -432,9 +509,24 @@ cameraButton.addEventListener('click', () => {
   if (cameraStream) stopCamera();
   else void startCamera();
 });
+cameraSelect.addEventListener('change', () => {
+  settings = { ...settings, cameraId: cameraSelect.value };
+  saveSettings();
+  if (cameraStream) {
+    stopCamera();
+    void startCamera();
+  }
+});
+sensitivityInput.addEventListener('input', () => {
+  settings = { ...settings, sensitivity: Number(sensitivityInput.value) };
+  sensitivityValue.value = `${Math.round(settings.sensitivity * 100)}%`;
+  saveSettings();
+});
 calibrateButton.addEventListener('click', calibrate);
 backgroundButton.addEventListener('click', () => {
   background = background === 'studio' ? 'green' : background === 'green' ? 'transparent' : 'studio';
+  settings = { ...settings, background };
+  saveSettings();
   applyBackground();
 });
 broadcastButton.addEventListener('click', () => {
@@ -484,7 +576,12 @@ const resize = () => {
 };
 new ResizeObserver(resize).observe(stage);
 resize();
+sensitivityInput.value = String(settings.sensitivity);
+sensitivityValue.value = `${Math.round(settings.sensitivity * 100)}%`;
+setTrackingQuality();
 applyBackground();
+void refreshCameras();
+navigator.mediaDevices?.addEventListener('devicechange', () => { void refreshCameras(); });
 
 const animate = () => {
   requestAnimationFrame(animate);
@@ -504,10 +601,16 @@ const animate = () => {
   if (faceVisible && now - lastDetectionAt > 500) {
     faceVisible = false;
     targetMotion = { ...EMPTY_MOTION };
+    detectedFrames = 0;
+    lastFpsAt = now;
+    setTrackingQuality();
     setTrackingState('lost', '未检测到人脸');
   }
   if (now - lastFpsAt >= 1000 && faceVisible) {
-    setTrackingState('active', `正在驱动角色 · ${detectedFrames} FPS`);
+    const fps = Math.round(detectedFrames * 1000 / (now - lastFpsAt));
+    const quality = trackingQuality(fps, true);
+    setTrackingQuality(fps, true);
+    setTrackingState('active', `正在驱动角色 · ${fps} FPS · ${quality.label}`);
     detectedFrames = 0;
     lastFpsAt = now;
   }

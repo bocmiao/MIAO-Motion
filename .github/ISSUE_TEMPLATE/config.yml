@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 安全问题
+    url: https://github.com/bocmiao/MIAO-Motion/security/policy
+    about: 不要公开摄像头、文件、令牌或漏洞利用细节，请先阅读安全报告方式。

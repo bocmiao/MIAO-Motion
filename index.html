@@ -9,7 +9,7 @@
   <body>
     <main class="app-shell">
       <header class="brand-bar">
-        <a class="brand" href="/" aria-label="MIAO Motion 首页">
+        <a class="brand" href="./" aria-label="MIAO Motion 首页">
           <span class="brand-mark" aria-hidden="true">M</span>
           <span>MIAO Motion <small>喵动</small></span>
         </a>
@@ -17,7 +17,7 @@
       </header>
 
       <section class="intro" aria-labelledby="welcome-title">
-        <p class="eyebrow">第一代可运行版本 · v0.2.0</p>
+        <p class="eyebrow">第一代可运行版本 · v0.2.1</p>
         <h1 id="welcome-title">三步，让你的角色动起来。</h1>
         <p>导入 VRM、打开摄像头、进入直播画面。无需注册，不上传素材。</p>
       </section>
@@ -43,13 +43,34 @@
             <button id="camera-toggle" class="secondary-button" type="button">开启摄像头</button>
           </section>
 
-          <section class="tracking-card" aria-live="polite">
+          <section class="tracking-card">
             <div class="tracking-title">
               <span id="tracking-dot" class="status-dot" data-state="idle"></span>
               <strong>实时动捕</strong>
             </div>
-            <p id="tracking-status">等待开启摄像头</p>
+            <p id="tracking-status" role="status" aria-live="polite">等待开启摄像头</p>
+            <div class="quality-row">
+              <span>追踪质量</span>
+              <meter id="tracking-quality" min="0" max="30" low="15" high="24" optimum="30" value="0">0</meter>
+              <output id="tracking-quality-label" for="tracking-quality">等待人脸</output>
+            </div>
             <button id="calibrate" class="text-button" type="button" disabled>正面校准</button>
+          </section>
+
+          <section class="motion-settings" aria-labelledby="motion-settings-title">
+            <strong id="motion-settings-title">动捕设置</strong>
+            <label>
+              <span>摄像头</span>
+              <select id="camera-select" aria-describedby="camera-help">
+                <option value="">系统默认摄像头</option>
+              </select>
+            </label>
+            <small id="camera-help">授权后会显示设备名称；切换时自动重启摄像头。</small>
+            <label>
+              <span>动作幅度</span>
+              <input id="sensitivity" type="range" min="0.5" max="1.5" step="0.1" value="1" />
+              <output id="sensitivity-value" for="sensitivity">100%</output>
+            </label>
           </section>
 
           <section class="model-doctor">
@@ -89,7 +110,7 @@
       </section>
 
       <footer>
-        <span>MIAO Motion v0.2.0 · MPL-2.0</span>
+        <span>MIAO Motion v0.2.1 · MPL-2.0</span>
         <span>按 Esc 或双击直播画面可退出</span>
       </footer>
     </main>
