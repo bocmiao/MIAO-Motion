@@ -13,7 +13,7 @@ test('零基础入口、键盘导入与本地设置可用', async ({ page }) => 
 
   const advanced = page.locator('.advanced-settings');
   await expect(advanced).not.toHaveAttribute('open', '');
-  await advanced.locator('summary').click();
+  await page.locator('.advanced-settings > summary').click();
   await page.locator('#mirror-motion').uncheck();
   await page.locator('#sensitivity').fill('1.4');
 
