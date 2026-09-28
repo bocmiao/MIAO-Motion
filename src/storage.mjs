@@ -1,5 +1,5 @@
 const DATABASE_NAME = 'miao-motion';
-const DATABASE_VERSION = 3;
+const DATABASE_VERSION = 4;
 
 export function openAppDatabase() {
   return new Promise((resolve, reject) => {
@@ -20,13 +20,19 @@ export function openAppDatabase() {
         const profiles = db.createObjectStore('profiles', { keyPath: 'id' });
         profiles.createIndex('updatedAt', 'updatedAt');
       }
-      if ((event.oldVersion ?? 0) === 1 && transaction && models) {
+      if ((event.oldVersion ?? 0) < 4 && transaction && models) {
         const legacy = transaction.objectStore('assets').get('current-vrm');
         legacy.onsuccess = () => {
           const value = legacy.result;
           if (!value?.data) return;
-          const data = value.data instanceof Blob ? value.data : new Blob([value.data], { type: value.type });
-          models.put({ id: 'current', name: value.name ?? 'avatar.vrm', type: value.type ?? 'model/vrm', data, size: data.size, updatedAt: Date.now(), thumbnail: '' });
+          const existing = models.get('current');
+          existing.onsuccess = () => {
+            if (!existing.result) {
+              const data = value.data instanceof Blob ? value.data : new Blob([value.data], { type: value.type });
+              models.put({ id: 'current', name: value.name ?? 'avatar.vrm', type: value.type ?? 'model/vrm', data, size: data.size, updatedAt: Date.now(), thumbnail: '' });
+            }
+            transaction.objectStore('assets').delete('current-vrm');
+          };
         };
       }
     };
@@ -64,13 +70,23 @@ export async function getStoredModel(id) {
   finally { db.close(); }
 }
 
-export async function putStoredModel(file, id = crypto.randomUUID()) {
+export async function putStoredModel(file, id) {
   const db = await openAppDatabase();
-  const value = { id, name: file.name, type: file.type || 'model/vrm', data: file, size: file.size, updatedAt: Date.now(), thumbnail: '' };
   try {
     const transaction = db.transaction('models', 'readwrite');
-    transaction.objectStore('models').put(value);
-    await complete(transaction);
+    const done = complete(transaction);
+    const store = transaction.objectStore('models');
+    const value = await new Promise((resolve, reject) => {
+      const request = store.getAll();
+      request.onsuccess = () => {
+        const previous = request.result.find(model => id ? model.id === id : model.sourceName === file.name && model.size === file.size && model.lastModified === file.lastModified);
+        const model = { ...previous, id: previous?.id ?? id ?? crypto.randomUUID(), name: previous?.name ?? file.name, sourceName: file.name, lastModified: file.lastModified, type: file.type || 'model/vrm', data: file, size: file.size, updatedAt: Date.now(), thumbnail: previous?.thumbnail ?? '' };
+        store.put(model);
+        resolve(model);
+      };
+      request.onerror = () => reject(request.error);
+    });
+    await done;
     return value;
   } finally { db.close(); }
 }

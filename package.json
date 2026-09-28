@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "version": "node scripts/sync-version.mjs && git add src-tauri/Cargo.toml src-tauri/Cargo.lock",
     "prepare:assets": "node scripts/prepare-mediapipe.mjs && node scripts/prepare-licenses.mjs",
     "fixtures:generate": "node scripts/generate-test-vrm.mjs",
     "predev": "npm run prepare:assets",
@@ -29,6 +30,8 @@
     "@playwright/test": "^1.63.0",
     "@tauri-apps/cli": "^2.12.0",
     "@types/three": "^0.186.0",
+    "fake-indexeddb": "^6.2.5",
+    "pngjs": "^7.0.0",
     "typescript": "^5.9.2",
     "vite": "^7.0.8"
   },

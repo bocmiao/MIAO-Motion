@@ -7,7 +7,7 @@ export function obsBrowserSourceUrl(origin, pathname) {
 
 export function broadcastBackground(background) {
   return background === 'studio'
-    ? { background: 'transparent', previous: 'studio' }
+    ? { background: 'green', previous: 'studio' }
     : { background, previous: null };
 }
 

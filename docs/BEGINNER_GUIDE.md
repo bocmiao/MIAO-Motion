@@ -1,6 +1,6 @@
 # MIAO Motion 零基础使用教程
 
-这份教程从“电脑上什么都没有”开始。优先使用 CI 生成的免构建便携包，不需要 Node.js；只有运行源码版时才需要 Node.js 22+。当前仍是 v0.2.1 候选版，正式 Release 要等 Windows 真机验收。
+这份教程从“电脑上什么都没有”开始。优先使用 beta 发布页的免构建便携包，不需要 Node.js；源码版才需要 Node.js 22+。当前为未经完整真人设备验证的测试版，不是正式稳定版。
 
 ## 1. 开始前准备
 
@@ -18,16 +18,16 @@
 
 ### 方法 A：免 Node.js 便携包（推荐）
 
-1. 从 GitHub Actions 的成功构建下载 `MIAO-Motion-portable-windows`。
-2. 解压两层 ZIP，确认目录里能看到 `dist` 和 `start-portable.bat`。
-3. 双击 `start-portable.bat`，浏览器会自动打开。
+1. 打开 [测试版下载页](https://github.com/bocmiao/MIAO-Motion/releases)，下载 `MIAO-Motion-portable.zip` 和同名 `.sha256`；如果列表暂为空，表示发布构建尚未完成，不是需要注册账号。
+2. 右键“全部解压缩”，确认根目录能看到 `双击启动喵动.bat`、`先看这里.txt` 和 `support`。
+3. 双击 `双击启动喵动.bat`，浏览器会自动打开。
 4. 保留 PowerShell 服务窗口；用完后关闭它。
 
-便携包已经包含离线动捕模型和许可证，不需要安装依赖。正式 Release 与国内镜像尚未建立，下载来源不明确时不要关闭杀毒软件或绕过安全提示。
+包内有离线动捕资源和许可证。SHA-256 校验、未签名说明见 [下载说明](../public/download.html)。国内镜像尚无所有者凭据，未启用；不要关闭杀毒软件/智能应用控制或绕过组织策略。
 
 ### 方法 B：Windows 安装包候选版
 
-GitHub Actions 的 `MIAO-Motion-Tauri-Windows` 会生成 `*-setup.exe`。下载后双击安装即可，不需要 Node.js；因为目前没有代码签名证书，Windows 可能显示“未知发布者”。只使用仓库 Actions 生成的文件，不要从陌生网盘下载。安装、卸载、升级和摄像头权限仍需真机复核。
+在同一发布页下载 `*-setup.exe` 并校验同名 SHA-256。不需要 Node.js；未签名可能被系统拦截或显示“未知发布者”。无法由可信来源/哈希确认时不要运行；组织策略禁止时联系管理员。安装版与便携浏览器版的模型和设置不共享，换版需重新导入 VRM，设置可手动导入导出。真实升级和相机仍待设备复核。
 
 ### 方法 C：从源码启动
 
@@ -43,14 +43,16 @@ GitHub Actions 的 `MIAO-Motion-Tauri-Windows` 会生成 `*-setup.exe`。下载�
 
 ## 3. 没有角色时制作 VRM
 
-1. 从 [VRoid Studio 官方网站](https://vroid.com/en/studio)下载安装。
+详细的一页式步骤见 [从零做角色](../public/create-character.html)，包括 VRoid 工程文件与 VRM 的区别、导出参数、作者/直播/商用许可与 Hub 模型选择。
+
+1. 从 [VRoid Studio 官方中文 Steam 页面](https://store.steampowered.com/app/1486350/VRoid_Studio/?l=schinese)下载安装。
 2. 新建角色，先使用默认人物也可以。
 3. 调整脸型、发型、服装和颜色。
 4. 导出时选择 VRM 1.0。
 5. 阅读并设置模型使用条件，确认自己有直播使用权。
 6. 记住导出的 `.vrm` 文件位置。
 
-MIAO Motion v1.0 不自带捏人系统。角色制作交给 VRoid Studio，程序专注于动捕和开播。
+当前不内置捏人系统。没有角色也可在引导中“先跳过”，学习后续相机和平台步骤；示例角色按钮需取得合法资源后启用，不会暗中下载陌生模型。
 
 ## 4. 第一次让角色动起来
 

@@ -19,10 +19,10 @@ test('portable launcher is Node-free and validates its build', () => {
   const server = readFileSync(new URL('../portable-server.ps1', import.meta.url), 'utf8');
   assert.doesNotMatch(portable, /node|npm/i);
   assert.match(portable, /dist\\index\.html/);
-  assert.match(server, /HttpListener/);
+  assert.match(server, /TcpListener/);
   assert.match(server, /StartsWith\(\$rootBoundary/);
   assert.match(server, /\[switch\]\$NoBrowser/);
   assert.match(server, /MIAO_MOTION_NO_BROWSER/);
   assert.match(server, /if \(-not \$skipBrowser\) \{ Start-Process \$prefix \}/);
-  assert.doesNotMatch(server, /[^\x00-\x7F]/, 'Windows PowerShell 5.1 script must stay ASCII');
+  assert.equal(server.charCodeAt(0), 0xfeff, 'Windows PowerShell 5.1 Chinese script requires UTF-8 BOM');
 });

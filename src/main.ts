@@ -11,7 +11,7 @@ import {
   VRMUtils,
 } from '@pixiv/three-vrm';
 import { damping, lerpMotion, solveExpressions } from './motion.mjs';
-import { collectModelMetrics, gazeAngles, idleBlink, mirrorMotion, relativeHeadRotation } from './avatar-utils.mjs';
+import { applyNaturalPose, frameAvatar, vrmRotation, collectModelMetrics, gazeAngles, idleBlink, mirrorMotion, relativeHeadRotation } from './avatar-utils.mjs';
 import {
   DEFAULT_SETTINGS,
   coarseUserAgent,
@@ -95,6 +95,8 @@ const renderQualitySelect = required<HTMLSelectElement>('#render-quality');
 const outputAspectSelect = required<HTMLSelectElement>('#output-aspect');
 const mirrorInput = required<HTMLInputElement>('#mirror-motion');
 const modelLibrary = required<HTMLSelectElement>('#model-library');
+const loadModelButton = required<HTMLButtonElement>('#load-library-model');
+const desktopRuntime = location.hostname === 'tauri.localhost' || location.protocol === 'tauri:';
 const modelThumbnail = required<HTMLImageElement>('#model-thumbnail');
 const renameModelButton = required<HTMLButtonElement>('#rename-model');
 const deleteLibraryModelButton = required<HTMLButtonElement>('#delete-library-model');
@@ -346,17 +348,8 @@ const refreshCameras = async () => {
 };
 
 const frameModel = (object: THREE.Object3D, preset: 'head' | 'upper' | 'full' = 'upper') => {
-  const bounds = new THREE.Box3().setFromObject(object);
-  const size = bounds.getSize(new THREE.Vector3());
-  const center = bounds.getCenter(new THREE.Vector3());
-  const height = Math.max(size.y, 0.5);
-  const targetY = preset === 'head' ? center.y + height * 0.3 : preset === 'upper' ? center.y + height * 0.13 : center.y;
-  const distance = preset === 'head' ? height * 0.52 : preset === 'upper' ? height * 0.92 : height * 1.55;
-  controls.target.set(center.x, targetY, center.z);
-  camera.position.set(center.x, targetY + height * 0.04, center.z + distance);
-  camera.near = Math.max(height / 100, 0.01);
-  camera.far = Math.max(height * 100, 100);
-  camera.updateProjectionMatrix();
+  if (!currentVrm || currentVrm.scene !== object) return;
+  frameAvatar(currentVrm, camera, controls.target, preset);
   controls.update();
 };
 
@@ -368,6 +361,7 @@ const refreshModelLibrary = async () => {
   const active = storedModels.find((model) => model.id === currentModelId) ?? storedModels[0];
   modelLibrary.value = active?.id ?? '';
   renameModelButton.disabled = !active;
+  loadModelButton.disabled = !active || importButton.disabled;
   deleteLibraryModelButton.disabled = !active;
   modelThumbnail.hidden = !active?.thumbnail;
   if (active?.thumbnail) modelThumbnail.src = active.thumbnail;
@@ -383,19 +377,29 @@ const refreshProfileLibrary = async () => {
 };
 
 const loadStoredModel = async (id: string, restored = false) => {
-  const stored = await getStoredModel(id);
-  if (!stored) return false;
-  const loaded = await loadVrm(new File([stored.data], stored.name, { type: stored.type }), false, stored.id);
-  if (loaded && restored) showToast('已恢复上次使用的角色和设置');
-  return loaded;
+  const generation = ++loadGeneration;
+  importButton.disabled = modelLibrary.disabled = loadModelButton.disabled = true;
+  try {
+    const stored = await getStoredModel(id);
+    if (!stored || generation !== loadGeneration) return false;
+    const loaded = await loadVrm(new File([stored.data], stored.name, { type: stored.type }), false, stored.id);
+    if (loaded && restored) showToast('已恢复上次使用的角色和设置');
+    return loaded;
+  } finally {
+    if (generation === loadGeneration) {
+      importButton.disabled = modelLibrary.disabled = false;
+      loadModelButton.disabled = !modelLibrary.value;
+    }
+  }
 };
 
 const restoreModel = async () => {
+  const generation = loadGeneration;
   try {
     await refreshModelLibrary();
     await refreshProfileLibrary();
     const candidate = storedModels.find((model) => model.id === settings.activeModelId) ?? storedModels[0];
-    if (candidate) await loadStoredModel(candidate.id, true);
+    if (candidate && generation === loadGeneration) await loadStoredModel(candidate.id, true);
   } catch (error) {
     console.warn('无法恢复上次模型', error);
     addDiagnosticEvent('model-restore-error', error);
@@ -423,10 +427,17 @@ const inspectModel = (vrm: VRM, fileBytes: number) => {
   const availableBones = humanoidBones.filter((name) => vrm.humanoid.getNormalizedBoneNode(name));
   const missingRequired = requiredBones.filter((name) => !vrm.humanoid.getNormalizedBoneNode(name));
   const meta = vrm.meta;
+  const licenseLabels: Record<string, string> = {
+    onlyAuthor: '仅作者本人', OnlyAuthor: '仅作者本人', onlySeparatelyLicensedPerson: '另行获得授权的人',
+    ExplicitlyLicensedPerson: '另行获得授权的人', everyone: '任何人', Everyone: '任何人',
+    personalNonProfit: '仅个人非营利使用', personalProfit: '个人可营利使用', corporation: '允许企业使用',
+    required: '需要署名', unnecessary: '无需署名', Allow: '允许', Disallow: '不允许',
+  };
+  const friendly = (value: string | undefined) => value ? licenseLabels[value] ?? value : '未填写，请向作者确认';
   const author = meta.metaVersion === '1' ? meta.authors.join('、') : meta.author;
   const license = meta.metaVersion === '1'
-    ? `使用者 ${meta.avatarPermission ?? '未填写'} · 商用 ${meta.commercialUsage ?? '未填写'} · 署名 ${meta.creditNotation ?? '未填写'} · 再分发 ${meta.allowRedistribution == null ? '未填写' : meta.allowRedistribution ? '允许' : '不允许'}`
-    : `使用者 ${meta.allowedUserName ?? '未填写'} · 商用 ${meta.commercialUssageName ?? '未填写'} · 许可 ${meta.licenseName ?? '未填写'}`;
+    ? `谁能使用：${friendly(meta.avatarPermission)} · 营利使用：${friendly(meta.commercialUsage)} · 署名：${friendly(meta.creditNotation)} · 再分发：${meta.allowRedistribution == null ? '未填写' : meta.allowRedistribution ? '允许' : '不允许'}`
+    : `谁能使用：${friendly(meta.allowedUserName)} · 营利使用：${friendly(meta.commercialUssageName)} · 许可：${friendly(meta.licenseName)}`;
   currentModelMeta = { vrmVersion: meta.metaVersion, author: author ?? '未填写', license };
   const metrics = collectModelMetrics(vrm.scene, fileBytes) as ModelMetrics;
   const performance = estimateModelPerformance(metrics);
@@ -435,8 +446,8 @@ const inspectModel = (vrm: VRM, fileBytes: number) => {
     ['头部骨骼', hasHead ? 'ok' : 'error', hasHead ? '头部转动可用' : '阻断：缺少 Head 骨骼，不能开始动捕'],
     ['眨眼表情', hasBlink ? 'ok' : 'warn', hasBlink ? '眨眼可用' : '提醒：头部和嘴型仍可使用'],
     ['嘴型表情', hasMouth ? 'ok' : 'warn', hasMouth ? '张嘴可用' : '提醒：头部和眨眼仍可使用'],
-    ['视线控制', hasLook ? 'ok' : 'warn', hasLook ? `眼神可用 · ${lookAtType === 'bone' ? '骨骼型' : lookAtType.startsWith('expression') ? '表情型' : '类型未知'}` : '提醒：眼睛不会跟随视线'],
-    ['Humanoid 必需骨骼', missingRequired.length === 0 ? 'ok' : 'warn', missingRequired.length === 0 ? `15/15 完整；全部骨骼 ${availableBones.length}/${humanoidBones.length}` : `缺 ${missingRequired.join('、')}；回到 VRoid/Blender 补全映射后重新导出`],
+    ['视线控制', hasLook ? 'ok' : 'warn', hasLook ? '眼珠可以跟着视线动' : '提醒：眼睛不会跟随视线'],
+    ['身体骨架', missingRequired.length === 0 ? 'ok' : 'warn', missingRequired.length === 0 ? `必需骨架完整（15/15）；已识别 ${availableBones.length} 个关节` : `缺少关节：${missingRequired.join('、')}；回到制作软件补全后重新导出`],
     ['模型作者', author ? 'ok' : 'warn', author ? `${author} · VRM ${meta.metaVersion}.x` : `未填写作者 · VRM ${meta.metaVersion}.x；直播前向模型来源方确认授权`],
     ['许可摘要', meta ? 'ok' : 'warn', `${license}；程序只展示模型声明，不替你判断授权`],
     ['三角面', metrics.triangles > 200_000 ? 'error' : metrics.triangles > 100_000 ? 'warn' : 'ok', `${metrics.triangles.toLocaleString('zh-CN')} 个三角面`],
@@ -463,17 +474,6 @@ const inspectModel = (vrm: VRM, fileBytes: number) => {
   return { compatible: [hasHead, hasBlink, hasMouth, hasLook].filter(Boolean).length, canAnimate: hasHead, performance };
 };
 
-const applyNaturalPose = (vrm: VRM) => {
-  const rotate = (name: VRMHumanBoneName, zDegrees: number) => {
-    const bone = vrm.humanoid.getNormalizedBoneNode(name);
-    if (bone) bone.quaternion.multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0, THREE.MathUtils.degToRad(zDegrees))));
-  };
-  rotate(VRMHumanBoneName.LeftUpperArm, -72);
-  rotate(VRMHumanBoneName.RightUpperArm, 72);
-  rotate(VRMHumanBoneName.LeftLowerArm, -8);
-  rotate(VRMHumanBoneName.RightLowerArm, 8);
-};
-
 const loadVrm = async (file: File, persist = true, storedId = '') => {
   const validationError = validateModelFile(file, MAX_MODEL_SIZE);
   if (validationError) {
@@ -483,7 +483,12 @@ const loadVrm = async (file: File, persist = true, storedId = '') => {
 
   const generation = ++loadGeneration;
   importButton.disabled = true;
+  modelLibrary.disabled = true;
+  loadModelButton.disabled = true;
   onboardingImportButton.disabled = true;
+  removeModelButton.disabled = true;
+  renameModelButton.disabled = true;
+  deleteLibraryModelButton.disabled = true;
   setModelStatus('正在本机读取模型…');
   const objectUrl = URL.createObjectURL(file);
   try {
@@ -504,11 +509,11 @@ const loadVrm = async (file: File, persist = true, storedId = '') => {
     }
 
     currentVrm = vrm;
+    thumbnailPendingId = '';
     scene.add(vrm.scene);
     frameModel(vrm.scene, settings.viewPreset);
     headRest.copy(vrm.humanoid.getNormalizedBoneNode(VRMHumanBoneName.Head)?.quaternion ?? new THREE.Quaternion());
-    chestRest.copy(vrm.humanoid.getNormalizedBoneNode(VRMHumanBoneName.Chest)?.quaternion ?? new THREE.Quaternion());
-    hasNeutral = false;
+    chestRest.copy((vrm.humanoid.getNormalizedBoneNode(VRMHumanBoneName.Chest) ?? vrm.humanoid.getNormalizedBoneNode(VRMHumanBoneName.Spine))?.quaternion ?? new THREE.Quaternion());
     modelName.textContent = file.name.replace(/\.vrm$/i, '');
     const report = inspectModel(vrm, file.size);
     modelCanAnimate = report.canAnimate;
@@ -517,19 +522,21 @@ const loadVrm = async (file: File, persist = true, storedId = '') => {
     calibrateButton.disabled = !cameraStream || !modelCanAnimate;
     broadcastButton.disabled = !modelCanAnimate;
     obsButton.disabled = !modelCanAnimate;
-    removeModelButton.disabled = false;
     updateOnboarding();
     if (document.body.classList.contains('broadcast-mode') && modelCanAnimate && !cameraStream) void startCamera();
     try {
       const saved = persist ? await putStoredModel(file) : storedId ? await getStoredModel(storedId) : undefined;
+      if (generation !== loadGeneration) return false;
       currentModelId = saved?.id ?? storedId;
       if (currentModelId) {
         settings = { ...settings, activeModelId: currentModelId };
         saveSettings();
-        thumbnailPendingId = currentModelId;
+        if (!saved?.thumbnail) thumbnailPendingId = currentModelId;
       }
       await refreshModelLibrary();
+      if (generation !== loadGeneration) return false;
     } catch (error) {
+      if (generation !== loadGeneration) return false;
       console.warn('无法保存模型', error);
       addDiagnosticEvent('model-save-error', error);
       showToast('角色已加载，但浏览器空间不足，刷新后需要重新导入');
@@ -546,7 +553,12 @@ const loadVrm = async (file: File, persist = true, storedId = '') => {
     URL.revokeObjectURL(objectUrl);
     if (generation === loadGeneration) {
       importButton.disabled = false;
+      modelLibrary.disabled = false;
+      loadModelButton.disabled = !modelLibrary.value;
       onboardingImportButton.disabled = false;
+      removeModelButton.disabled = !currentVrm;
+      renameModelButton.disabled = !modelLibrary.value;
+      deleteLibraryModelButton.disabled = !modelLibrary.value;
       fileInput.value = '';
     }
   }
@@ -600,6 +612,8 @@ const stopCamera = () => {
   cameraButton.textContent = '开启摄像头';
   calibrateButton.disabled = true;
   faceVisible = false;
+  lastVideoTime = -1;
+  lastInferenceAt = 0;
   targetMotion = { ...EMPTY_MOTION };
   if (hasNeutral) latestHead.copy(neutralHead);
   detectedFrames = 0;
@@ -628,6 +642,14 @@ const startCamera = async () => {
     await ensureDetector();
     detectorReady = true;
     cameraStream = stream;
+    const activeStream = stream;
+    stream.getVideoTracks().forEach(track => track.addEventListener('ended', () => {
+      if (cameraStream !== activeStream) return;
+      stopCamera();
+      cameraStatus.textContent = '摄像头已断开或被系统停止：请重新连接后点击开启';
+      setTrackingState('error', '摄像头连接已断开');
+      updateOnboarding();
+    }, { once: true }));
     cameraPreview.srcObject = stream;
     await cameraPreview.play();
     cameraPreview.hidden = document.body.classList.contains('broadcast-mode');
@@ -650,7 +672,7 @@ const startCamera = async () => {
       cameraStatus.textContent = '摄像头可用，但动捕引擎未能加载';
       setTrackingState('error', '本地动捕资源加载失败：请重新启动；仍失败时重新解压或构建');
     } else {
-      cameraStatus.textContent = cameraErrorMessage(error);
+      cameraStatus.textContent = cameraErrorMessage(error, desktopRuntime);
     }
   } finally {
     cameraStarting = false;
@@ -665,8 +687,7 @@ const readHeadRotation = (result: FaceLandmarkerResult) => {
   if (!matrix || matrix.data.length !== 16) return null;
   faceMatrix.fromArray(matrix.data);
   faceMatrix.decompose(facePosition, faceQuaternion, faceScale);
-  const source = new THREE.Euler().setFromQuaternion(faceQuaternion, 'YXZ');
-  return new THREE.Quaternion().setFromEuler(new THREE.Euler(-source.x, -source.y, source.z, 'YXZ'));
+  return faceQuaternion.clone();
 };
 
 const processDetection = (result: FaceLandmarkerResult) => {
@@ -733,14 +754,14 @@ const applyMotion = (delta: number) => {
 
   const head = currentVrm.humanoid.getNormalizedBoneNode(VRMHumanBoneName.Head);
   if (head && hasNeutral) {
-    headTarget.copy(headRest).multiply(relativeHeadRotation(latestHead, neutralHead, settings.sensitivity, settings.mirror));
+    headTarget.copy(headRest).multiply(vrmRotation(relativeHeadRotation(latestHead, neutralHead, settings.sensitivity, settings.mirror), currentVrm.meta.metaVersion));
     head.quaternion.slerp(headTarget, alpha);
   }
 
-  const chest = currentVrm.humanoid.getNormalizedBoneNode(VRMHumanBoneName.Chest);
+  const chest = currentVrm.humanoid.getNormalizedBoneNode(VRMHumanBoneName.Chest) ?? currentVrm.humanoid.getNormalizedBoneNode(VRMHumanBoneName.Spine);
   if (chest) {
     const breath = faceVisible ? 0 : Math.sin(performance.now() / 1_300) * 0.018;
-    chestTarget.copy(chestRest).multiply(new THREE.Quaternion().setFromEuler(new THREE.Euler(breath, 0, 0)));
+    chestTarget.copy(chestRest).multiply(vrmRotation(new THREE.Quaternion().setFromEuler(new THREE.Euler(breath, 0, 0)), currentVrm.meta.metaVersion));
     chest.quaternion.slerp(chestTarget, Math.min(alpha * 0.45, 1));
   }
 };
@@ -781,7 +802,10 @@ const applySettingsToControls = (applySavedBackground = true) => {
 };
 
 const removeCurrentModel = async (deleteRecord = true) => {
+  const generation = ++loadGeneration;
   if (deleteRecord && currentModelId) await deleteStoredModel(currentModelId);
+  if (generation !== loadGeneration) return;
+  importButton.disabled = modelLibrary.disabled = onboardingImportButton.disabled = false;
   if (currentVrm) {
     scene.remove(currentVrm.scene);
     VRMUtils.deepDispose(currentVrm.scene);
@@ -844,7 +868,7 @@ const runPreflight = async () => {
   const localRuntime = location.protocol === 'https:' || ['127.0.0.1', 'localhost', 'tauri.localhost'].includes(location.hostname);
   results.push({ level: localRuntime ? 'ok' : 'error', text: localRuntime ? '运行环境允许摄像头权限' : '当前地址不是安全/本地环境，摄像头可能不可用' });
   results.push({ level: renderer.getContext().isContextLost() ? 'error' : 'ok', text: renderer.getContext().isContextLost() ? '3D 画面已丢失，请重新启动 3D' : '3D 画面正常' });
-  results.push({ level: modelCanAnimate ? 'ok' : 'error', text: modelCanAnimate ? `角色可用：${modelName.textContent}` : '没有可动的角色' });
+  results.push({ level: modelCanAnimate ? 'ok' : 'error', text: modelCanAnimate ? '角色可用' : '没有可动的角色' });
   results.push({ level: cameraStream ? 'ok' : 'warn', text: cameraStream ? '摄像头已开启' : '摄像头未开启' });
   results.push({ level: faceVisible ? 'ok' : 'warn', text: faceVisible ? `已检测到人脸：${trackingStatus.textContent}` : '尚未检测到人脸，请正对镜头并校准' });
   try {
@@ -884,6 +908,7 @@ const enterBroadcast = () => {
   backgroundBeforeBroadcast = broadcast.previous;
   applyBackground();
   updateBroadcastStatus();
+  showToast('按 Esc 或双击返回；下一步在直播软件中添加窗口捕获并抠绿幕');
 };
 
 const exitBroadcast = () => {
@@ -897,11 +922,12 @@ const exitBroadcast = () => {
 };
 
 const copyObsUrl = async () => {
+  if (desktopRuntime) return;
   const url = obsBrowserSourceUrl(location.origin, location.pathname);
   try {
     await navigator.clipboard.writeText(url);
-    onboardingFinishState.textContent = 'OBS 地址已复制。现在到 OBS 添加“浏览器”来源并粘贴。';
-    showToast('OBS 地址已复制，添加“浏览器”来源后粘贴即可');
+    onboardingFinishState.textContent = '实验地址已复制：OBS 内须重新导入模型、单独授权摄像头。推荐使用窗口捕获。';
+    showToast('实验地址已复制；OBS 不共享角色库和摄像头权限，推荐窗口捕获');
   } catch {
     onboardingFinishState.textContent = `无法自动复制，请手动复制：${url}`;
     showToast(url);
@@ -972,6 +998,7 @@ modelLibrary.addEventListener('change', () => {
   modelThumbnail.hidden = !selected?.thumbnail;
   if (selected?.thumbnail) modelThumbnail.src = selected.thumbnail;
 });
+loadModelButton.addEventListener('click', () => { if (modelLibrary.value) void loadStoredModel(modelLibrary.value); });
 renameModelButton.addEventListener('click', () => {
   const selected = storedModels.find((model) => model.id === modelLibrary.value);
   if (!selected) return;
@@ -1004,7 +1031,7 @@ deleteLibraryModelButton.addEventListener('click', () => {
   });
 });
 saveProfileButton.addEventListener('click', () => {
-  const name = profileNameInput.value.trim();
+  const name = profileNameInput.value.trim().slice(0, 40);
   if (!name) {
     showToast('请先填写配置档名称');
     profileNameInput.focus();
@@ -1148,6 +1175,23 @@ onboardingNextButton.addEventListener('click', () => {
   updateOnboarding();
 });
 onboardingImportButton.addEventListener('click', () => fileInput.click());
+required('#onboarding-skip').addEventListener('click', () => { onboardingStep = 2; updateOnboarding(); });
+required('#onboarding-skip-camera').addEventListener('click', () => { onboardingStep = 3; updateOnboarding(); });
+required<HTMLSelectElement>('#onboarding-platform').addEventListener('change', (event) => {
+  required<HTMLAnchorElement>('#platform-guide').href = `./platforms.html#${(event.target as HTMLSelectElement).value}`;
+});
+// Only a local, explicitly configured and licensed asset can enable this entry.
+void fetch('./example-avatar.json').then(response => response.json()).then(config => {
+  if (!config.path || !/^\.\/examples\/[\w.-]+\.vrm$/.test(config.path) || !config.license) return;
+  const button = required<HTMLButtonElement>('#load-example');
+  button.disabled = false;
+  button.textContent = '先用示例角色试试';
+  button.addEventListener('click', () => {
+    void fetch(config.path).then(response => { if (!response.ok) throw new Error('示例角色读取失败'); return response.blob(); })
+      .then(blob => loadVrm(new File([blob], '示例角色.vrm', { type: 'model/vrm', lastModified: 0 })))
+      .catch(() => showToast('示例角色不可用，请导入自己的 VRM 或先跳过'));
+  });
+}).catch(() => { /* Optional example asset is not configured. */ });
 onboardingCameraButton.addEventListener('click', () => {
   if (cameraStream) stopCamera();
   else void startCamera();
@@ -1155,7 +1199,7 @@ onboardingCameraButton.addEventListener('click', () => {
 onboardingCalibrateButton.addEventListener('click', calibrate);
 onboardingBroadcastButton.addEventListener('click', () => {
   background = 'green';
-  settings = { ...settings, background };
+  settings = { ...settings, background, onboardingComplete: true };
   saveSettings();
   applyBackground();
   onboardingFinishState.textContent = '绿幕直播画面已打开。在 OBS 添加“窗口捕获”，选择 MIAO Motion，再添加色度键。';
@@ -1191,7 +1235,7 @@ document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape' && document.body.classList.contains('broadcast-mode')) exitBroadcast();
   const target = event.target as HTMLElement | null;
   const editing = target?.matches('input, textarea, select, [contenteditable="true"]');
-  if (!editing && event.key.toLowerCase() === 'r' && currentVrm) {
+  if (!editing && !event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'r' && currentVrm) {
     frameModel(currentVrm.scene, settings.viewPreset);
     showToast('角色画面已重新居中');
   }
@@ -1206,9 +1250,11 @@ const resize = () => {
   renderer.setSize(width, height, false);
   camera.aspect = width / height;
   camera.updateProjectionMatrix();
+  if (currentVrm) frameModel(currentVrm.scene, settings.viewPreset);
 };
 new ResizeObserver(resize).observe(stage);
 applySettingsToControls(!requestedBackground);
+obsButton.hidden = desktopRuntime;
 setTrackingQuality();
 updateOnboarding();
 void refreshCameras();
@@ -1242,6 +1288,9 @@ const animate = () => {
       console.error('动捕帧处理失败', error);
       addDiagnosticEvent('tracking-frame-error', error);
       stopCamera();
+      try { faceLandmarker?.close(); } catch { /* Failed detector may already be closed. */ }
+      faceLandmarker = null;
+      detectorPromise = null;
       cameraStatus.textContent = '动捕处理失败，摄像头已安全关闭';
       setTrackingState('error', '动捕发生错误，请重启摄像头');
     }
@@ -1262,7 +1311,7 @@ const animate = () => {
     const fps = Math.round(detectedFrames * 1000 / (now - lastFpsAt));
     const quality = trackingQuality(fps, true);
     setTrackingQuality(fps, true);
-    setTrackingState('active', `正在驱动角色 · ${fps} FPS · ${quality.label}`);
+    setTrackingState('active', `正在驱动角色 · 每秒 ${fps} 帧 · ${quality.label}`);
     detectedFrames = 0;
     lastFpsAt = now;
   }
@@ -1277,7 +1326,9 @@ const animate = () => {
       const preview = document.createElement('canvas');
       preview.width = 160;
       preview.height = 160;
-      preview.getContext('2d')?.drawImage(canvas, 0, 0, 160, 160);
+      const scale = Math.min(160 / canvas.width, 160 / canvas.height);
+      const w = canvas.width * scale, h = canvas.height * scale;
+      preview.getContext('2d')?.drawImage(canvas, (160 - w) / 2, (160 - h) / 2, w, h);
       const thumbnail = preview.toDataURL('image/webp', 0.72);
       void updateStoredModel(id, { thumbnail }).then(refreshModelLibrary).catch((error) => addDiagnosticEvent('thumbnail-save-error', error));
     } catch (error) {

@@ -19,9 +19,9 @@ test('head return, look-at, and safe diagnostics are wired', () => {
   assert.doesNotMatch(source, /\.innerHTML\s*=/);
 });
 
-test('IndexedDB v3 stores Blob model libraries, profiles, and migrates legacy data', () => {
+test('IndexedDB v4 stores Blob model libraries, profiles, and migrates legacy data', () => {
   assert.match(storage, /indexedDB\.open\(DATABASE_NAME, DATABASE_VERSION\)/);
-  assert.match(storage, /DATABASE_VERSION = 3/);
+  assert.match(storage, /DATABASE_VERSION = 4/);
   assert.match(storage, /createObjectStore\('models'/);
   assert.match(storage, /createObjectStore\('profiles'/);
   assert.match(storage, /new Blob\(\[value\.data\]/);

@@ -1,6 +1,7 @@
 node_modules/
 dist/
 src-tauri/target/
+experiments/virtual-camera/target/
 playwright-report/
 test-results/
 public/mediapipe/

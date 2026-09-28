@@ -13,12 +13,12 @@ for (const [, id] of source.matchAll(/required<[^>]+>\('#([^']+)'\)/g)) {
 });
 
 test('document exposes onboarding, accessibility, privacy, and data controls', () => {
-assert.match(html, new RegExp(`MIAO Motion v${pkg.version.replaceAll('.', '\\.')}\\b`));
+assert.match(html, /MIAO Motion v%MIAO_VERSION%/);
 assert.match(html, /<html lang="zh-CN">/);
 assert.match(html, /id="tracking-status"[^>]+aria-live="polite"/);
 assert.match(html, /<dialog id="onboarding-dialog"/);
 assert.equal([...html.matchAll(/data-onboarding-panel="[0-3]"/g)].length, 4);
-assert.match(html, /https:\/\/vroid\.com\/en\/studio/);
+assert.match(html, /https:\/\/store\.steampowered\.com\/app\/1486350\/VRoid_Studio\/\?l=schinese/);
 assert.match(html, /id="open-guide"/);
 assert.match(html, /id="render-quality"/);
 assert.match(html, /id="export-settings"/);

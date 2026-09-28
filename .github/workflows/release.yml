@@ -25,24 +25,47 @@ jobs:
           key: mediapipe-face-64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff
       - run: npm ci
       - run: npm run build
-      - run: npm run desktop:build
+      - run: npm run desktop:build -- --locked
+      - name: Smoke-test installed application
+        shell: pwsh
+        run: ./scripts/smoke-desktop.ps1
       - name: Package portable build and checksums
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Path release/MIAO-Motion-portable | Out-Null
-          Copy-Item dist, docs, start-portable.bat, portable-server.ps1, README.md, LICENSE, TRADEMARKS.md, THIRD_PARTY_NOTICES.md -Destination release/MIAO-Motion-portable -Recurse
-          Compress-Archive -Path release/MIAO-Motion-portable -DestinationPath release/MIAO-Motion-portable.zip
+          ./scripts/package-portable.ps1 -Output release
           Copy-Item src-tauri/target/release/bundle/nsis/*-setup.exe release/
-          Get-ChildItem release -File | ForEach-Object {
+          Get-ChildItem release -File | Where-Object { $_.Extension -in '.exe', '.zip' } | ForEach-Object {
             $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower()
             "$hash  $($_.Name)" | Set-Content "$($_.FullName).sha256" -Encoding ascii
           }
-      - name: Create draft GitHub Release
+      - name: Smoke-test extracted portable package
+        shell: pwsh
+        run: ./scripts/smoke-portable.ps1 -Zip release/MIAO-Motion-portable.zip
+      - name: Publish explicitly marked beta (stable tags remain drafts)
         if: startsWith(github.ref, 'refs/tags/v')
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${{ github.ref_name }}" release/* --draft --verify-tag --generate-notes --title "MIAO Motion ${{ github.ref_name }}"
+        run: |
+          $files = @(Get-ChildItem release -File | ForEach-Object FullName)
+          $mode = if ('${{ github.ref_name }}' -match '-beta') { '--prerelease' } else { '--draft' }
+          gh release create '${{ github.ref_name }}' @files $mode --verify-tag --notes-file docs/BETA_RELEASE_NOTES.md --title 'MIAO Motion ${{ github.ref_name }}'
+      - name: Optional domestic mirror upload (owner-configured endpoint)
+        shell: pwsh
+        env:
+          MIAO_MIRROR_URL: ${{ vars.MIAO_MIRROR_URL }}
+          MIAO_MIRROR_TOKEN: ${{ secrets.MIAO_MIRROR_TOKEN }}
+        run: |
+          if (-not $env:MIAO_MIRROR_URL -or -not $env:MIAO_MIRROR_TOKEN) {
+            Write-Host '未配置国内镜像，未执行上传；GitHub 下载不受影响。'
+            exit 0
+          }
+          $base = [Uri]$env:MIAO_MIRROR_URL
+          if ($base.Scheme -ne 'https') { throw '镜像必须使用 HTTPS' }
+          Get-ChildItem release -File | ForEach-Object {
+            $url = $env:MIAO_MIRROR_URL.TrimEnd('/') + '/' + [Uri]::EscapeDataString($_.Name)
+            Invoke-WebRequest -Uri $url -Method Put -InFile $_.FullName -Headers @{ Authorization = "Bearer $env:MIAO_MIRROR_TOKEN" } -MaximumRedirection 0 | Out-Null
+          }
       - uses: actions/upload-artifact@v4
         with:
           name: MIAO-Motion-release-candidate

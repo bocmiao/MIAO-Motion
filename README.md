@@ -25,11 +25,11 @@
 
 ### 推荐：免 Node.js 便携包
 
-1. 在 GitHub Actions 的成功构建中下载 `MIAO-Motion-portable-windows`，并解压 ZIP。
-2. 双击 `start-portable.bat`。不要直接在压缩包预览窗口中运行。
+1. 在 [测试版发布页](https://github.com/bocmiao/MIAO-Motion/releases) 下载 `MIAO-Motion-portable.zip` 与同名 `.sha256`，右键“全部解压缩”。若页面暂为空，说明发布构建仍在进行。
+2. 双击 `双击启动喵动.bat`。不要直接在压缩包预览窗口中运行。
 3. 浏览器打开后，选择 VRM、开启摄像头，再做正面校准。
 
-便携包包含预构建网页、离线动捕资源、许可证和本地 PowerShell 服务器，不需要安装 Node.js。正式 Release 和国内镜像仍要等真机验收。
+便携包含预构建网页、离线资源、许可证和本机服务器，无需 Node.js；同页提供 Windows 安装包。beta 不代表真实相机/直播软件已验证。国内镜像需所有者配置，当前未启用。详见 [中文下载与校验说明](public/download.html)。
 
 ### 源码版
 
@@ -101,9 +101,11 @@ http://127.0.0.1:4173/?broadcast=1&background=transparent
 
 ## 项目计划
 
+- [Claude 第二轮整改记录](docs/CLAUDE_ROUND2_REMEDIATION.md)：17 项缺陷/交付对照，实际测试证据和明确未完成项。
+
 - [计划—代码差距审计与执行清单](docs/PLAN_CODE_GAP_AUDIT_2026-09-28.md)：逐项对照全部计划、当前实现、可独立完成工作和真人验证事项。
 - [完整项目计划书](docs/PROJECT_PLAN.md)：产品定位、竞品、开源复用、功能范围、架构、路线图、风险与发布策略。
-- [版本验收清单](docs/ACCEPTANCE.md)：从 v0.2.1 实机验证到 v1.0 发布的逐项门槛。
+- [设备与使用记录清单](docs/ACCEPTANCE.md)：记录实际验证结果，不作为其他代码工作的前置门槛。
 - [当前验证状态](docs/VALIDATION_STATUS.md)：已自动验证、代码审查覆盖和必须等待真机的项目。
 - [商标与项目资产政策](TRADEMARKS.md)：区分开源代码权利、官方名称/Logo 与用户模型授权。
 - [项目现状审计](docs/PROJECT_STATUS.md)：已经完成、部分完成、尚未完成和后续优化优先级。

@@ -2,6 +2,7 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
+    <meta name="renderer" content="webkit" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="MIAO Motion：免费开源、本地优先的 VRM 动漫角色实时动捕工具" />
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' blob:; img-src 'self' blob: data:; media-src 'self' blob:; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'none'" />
@@ -21,9 +22,9 @@
       </header>
 
       <section class="intro" aria-labelledby="welcome-title">
-        <p class="eyebrow">第一代可运行版本 · v0.2.1</p>
-        <h1 id="welcome-title">四步，让你的角色动起来。</h1>
-        <p>导入 VRM、打开摄像头、进入直播画面。无需注册，不上传素材。</p>
+        <p class="eyebrow">第一代可运行版本 · v%MIAO_VERSION%</p>
+        <h1 id="welcome-title">让你的角色动起来。</h1>
+        <p>准备角色 → 开启摄像头 → 校准正面 → 接入直播。无需注册，不上传素材。</p>
       </section>
 
       <section class="workspace">
@@ -73,6 +74,7 @@
               </select>
             </div>
             <div class="compact-actions">
+              <button id="load-library-model" class="soft-button" type="button" disabled>载入角色</button>
               <button id="rename-model" class="soft-button" type="button" disabled>重命名</button>
               <button id="delete-library-model" class="soft-button" type="button" disabled>删除角色</button>
             </div>
@@ -110,7 +112,7 @@
               <input id="mirror-motion" type="checkbox" checked />
               <output for="mirror-motion">开启</output>
             </label>
-            <small>关闭后会交换左右眼、视线并反转头部左右方向；默认值仍需真机确认。</small>
+            <small>开启后像照镜子一样跟随；关闭后按角色自身的左右跟随。上下方向不变。</small>
             <div class="view-presets" aria-label="角色取景预设">
               <span>取景</span>
               <button class="soft-button" type="button" data-view="head">头像</button>
@@ -180,7 +182,7 @@
           <section class="broadcast-controls">
             <button id="background-toggle" class="soft-button" type="button">背景：影棚</button>
             <button id="broadcast-toggle" class="soft-button" type="button" disabled>进入直播画面</button>
-            <button id="copy-obs-url" class="soft-button soft-button--wide" type="button" disabled>复制 OBS 浏览器源地址</button>
+            <details><summary>高级实验：OBS 浏览器来源</summary><p>不共享角色库，需单独授权摄像头；新手请使用窗口捕获。</p><button id="copy-obs-url" class="soft-button" type="button" disabled>复制实验地址</button></details>
           </section>
         </aside>
 
@@ -192,7 +194,7 @@
             </div>
             <div class="stage-toolbar-actions">
               <button id="retry-3d" class="soft-button" type="button" hidden>重新启动 3D</button>
-              <span class="local-badge">LOCAL</span>
+              <span class="local-badge">仅本机</span>
             </div>
           </div>
 
@@ -214,7 +216,7 @@
       </section>
 
       <footer>
-        <span>MIAO Motion v0.2.1 · MPL-2.0</span>
+        <span>MIAO Motion v%MIAO_VERSION% · MPL-2.0</span>
         <span>按 Esc 或双击直播画面可退出</span>
       </footer>
     </main>
@@ -251,12 +253,15 @@
             <details>
               <summary>我还没有角色，怎么制作？</summary>
               <ol>
-                <li>下载安装免费的 <a href="https://vroid.com/en/studio" target="_blank" rel="noreferrer">VRoid Studio</a>。</li>
+                <li>下载安装免费的 <a href="https://store.steampowered.com/app/1486350/VRoid_Studio/?l=schinese" target="_blank" rel="noreferrer">VRoid Studio（中文介绍）</a>。</li>
                 <li>选择基础人物，调整发型、脸型和服装。</li>
                 <li>导出时选择 VRM 1.0，并确认模型允许用于直播。</li>
                 <li>回到这里点击“选择 VRM”。</li>
               </ol>
             </details>
+            <p><a href="./create-character.html" target="_blank" rel="noreferrer">教我一步步做自己的角色</a></p>
+            <button id="onboarding-skip" class="soft-button" type="button">先跳过角色，试试摄像头</button>
+            <button id="load-example" class="soft-button" type="button" disabled>示例角色尚未配置（可先跳过）</button>
             <p class="onboarding-tip">模型检查会告诉你缺少哪些骨骼或表情；警告不一定影响其他动作。</p>
           </section>
 
@@ -273,6 +278,7 @@
               <li>有多个摄像头时，可在主界面的“动捕设置”中切换。</li>
             </ul>
             <p class="privacy-note">画面不会上传；停止摄像头或关闭页面后会释放设备。</p>
+            <button id="onboarding-skip-camera" class="soft-button" type="button">暂时没有摄像头，继续看教程</button>
           </section>
 
           <section data-onboarding-panel="3" hidden>
@@ -288,11 +294,13 @@
               <article>
                 <span>2</span>
                 <strong>打开绿幕直播画面</strong>
-                <p>程序会切换绿幕并进入干净画面；在 OBS 添加“窗口捕获”，再添加色度键。</p>
+                <p>程序会切换绿幕并进入干净画面；在 OBS 添加“窗口捕获”，再添加“色度键”抠掉绿色。按 Esc 返回。</p>
                 <button id="onboarding-enter-broadcast" class="soft-button" type="button">打开绿幕画面</button>
               </article>
             </div>
             <p id="onboarding-finish-state" class="onboarding-status" role="status" aria-live="polite">先让角色正常跟随，再进行校准和 OBS 设置。</p>
+            <label>我要使用的平台 <select id="onboarding-platform"><option value="obs">OBS / 直播工具</option><option value="portrait">抖音 / 快手 / 视频号竖屏</option><option value="meeting">腾讯会议 / 钉钉 / 飞书 / Zoom / Teams</option><option value="rtmp">平台推流码</option></select></label>
+            <a id="platform-guide" href="./platforms.html#obs" target="_blank" rel="noreferrer">打开所选平台的接入教程</a>
             <p class="onboarding-tip">“窗口捕获”是默认方案；主界面的“复制 OBS 浏览器源地址”仅供进阶实验。<a href="/help.html" target="_blank">查看离线零基础教程</a></p>
           </section>
         </div>

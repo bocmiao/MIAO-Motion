@@ -139,20 +139,50 @@ jobs:
           }
       - name: Package Node-free portable build
         shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Path portable/MIAO-Motion-portable | Out-Null
-          Copy-Item dist, docs, start-portable.bat, portable-server.ps1, README.md, LICENSE, THIRD_PARTY_NOTICES.md -Destination portable/MIAO-Motion-portable -Recurse
-          Compress-Archive -Path portable/MIAO-Motion-portable -DestinationPath MIAO-Motion-portable.zip
-          $hash = (Get-FileHash MIAO-Motion-portable.zip -Algorithm SHA256).Hash.ToLower()
-          "$hash  MIAO-Motion-portable.zip" | Set-Content MIAO-Motion-portable.zip.sha256 -Encoding ascii
+        run: ./scripts/package-portable.ps1 -Output portable
+      - name: Extract and run portable as a standard user
+        shell: pwsh
+        run: ./scripts/smoke-portable.ps1
       - uses: actions/upload-artifact@v4
         with:
           name: MIAO-Motion-portable-windows
           path: |
-            MIAO-Motion-portable.zip
-            MIAO-Motion-portable.zip.sha256
+            portable/MIAO-Motion-portable.zip
+            portable/MIAO-Motion-portable.zip.sha256
           if-no-files-found: error
           retention-days: 14
+
+  publish-beta:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [build, browser-smoke, windows-portable, windows-desktop]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: MIAO-Motion-*-windows
+          path: beta-assets
+          merge-multiple: true
+      - uses: actions/download-artifact@v5
+        with:
+          name: MIAO-Motion-Tauri-Windows
+          path: beta-assets
+      - name: Publish tested beta once, without replacing existing releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="v$(node -p 'JSON.parse(require("fs").readFileSync("package.json")).version')-beta"
+          gh release list --limit 100 --json tagName > /tmp/miao-releases.json
+          if node -e 'process.exit(JSON.parse(require("fs").readFileSync("/tmp/miao-releases.json")).some(x=>x.tagName===process.argv[1])?0:1)' "$tag"; then
+            echo "Existing $tag is preserved; bump version to publish a new beta."
+            exit 0
+          fi
+          for asset in beta-assets/*.exe; do
+            (cd beta-assets && sha256sum "$(basename "$asset")" > "$(basename "$asset").sha256")
+          done
+          gh release create "$tag" beta-assets/* --target "$GITHUB_SHA" --prerelease --title "喵动 $tag 测试版" --notes-file docs/BETA_RELEASE_NOTES.md
 
   windows-desktop:
     runs-on: windows-latest
@@ -164,12 +194,17 @@ jobs:
           node-version: 22
           cache: npm
       - uses: dtolnay/rust-toolchain@stable
+      - name: Compile and query isolated Windows virtual camera API
+        run: cargo run --locked --manifest-path experiments/virtual-camera/Cargo.toml
       - uses: actions/cache@v4
         with:
           path: public/mediapipe
           key: mediapipe-face-64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff
       - run: npm ci
-      - run: npm run desktop:build
+      - run: npm run desktop:build -- --locked
+      - name: Install, launch and uninstall NSIS package
+        shell: pwsh
+        run: ./scripts/smoke-desktop.ps1
       - uses: actions/upload-artifact@v4
         with:
           name: MIAO-Motion-Tauri-Windows

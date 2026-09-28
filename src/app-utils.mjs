@@ -177,7 +177,7 @@ export function sanitizeDiagnosticMessage(value) {
     .replace(/file:\/\/[^\n)]*/gi, 'file:[redacted]')
     .replace(/(^|\s)\/\/[^/\s]+\/[^\n)]*/g, '$1[local-path-redacted]')
     .replace(/\\\\[^\\\s]+\\[^\n)]*/g, '[local-path-redacted]')
-    .replace(/[a-z]:[\\/][^\n)]*/gi, '[local-path-redacted]')
+    .replace(/\b[a-z]:[\\/][^\n)]*/gi, '[local-path-redacted]')
     .replace(/\/(?:Users|home|Volumes|mnt\/[a-z]\/Users)\/[^\n)]*/gi, '[local-path-redacted]');
 }
 

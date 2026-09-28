@@ -44,6 +44,8 @@ const stopped = [];
 stopMediaStream({ getTracks: () => [{ stop: () => stopped.push('video') }, { stop: () => stopped.push('audio') }] });
 assert.deepEqual(stopped, ['video', 'audio']);
 assert.match(cameraErrorMessage({ name: 'NotAllowedError' }), /权限/);
+assert.match(cameraErrorMessage({ name: 'NotAllowedError' }, true), /Windows/);
+assert.doesNotMatch(cameraErrorMessage({ name: 'NotAllowedError' }, true), /地址栏/);
 assert.match(cameraErrorMessage({ name: 'NotReadableError' }), /占用/);
 assert.equal(trackingQuality(25, true).level, 'good');
 assert.equal(trackingQuality(15, true).level, 'fair');
@@ -87,6 +89,7 @@ assert.equal(sanitizeDiagnosticMessage('failed file:///home/miao/avatar.vrm)'), 
 assert.equal(sanitizeDiagnosticMessage('failed blob:http://127.0.0.1/private-id'), 'failed blob:[redacted]');
 assert.equal(sanitizeDiagnosticMessage('read //server/share/private/avatar.vrm'), 'read [local-path-redacted]');
 assert.equal(sanitizeDiagnosticMessage('read C:/Users/Miao/avatar.vrm'), 'read [local-path-redacted]');
+assert.equal(sanitizeDiagnosticMessage('http://127.0.0.1/'), 'http://127.0.0.1/');
 assert.equal(sanitizeDiagnosticMessage('read /mnt/c/Users/Miao/avatar.vrm'), 'read [local-path-redacted]');
 assert.equal(sanitizeDiagnosticMessage('read /Volumes/Private/avatar.vrm'), 'read [local-path-redacted]');
 assert.equal(coarseUserAgent('Mozilla/5.0 Chrome/140.0.0.0 Safari/537.36'), 'Chrome/140');

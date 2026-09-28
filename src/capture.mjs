@@ -10,9 +10,11 @@ export function cameraConstraints(cameraId = '') {
   };
 }
 
-export function cameraErrorMessage(error) {
+export function cameraErrorMessage(error, desktop = false) {
   const name = error && typeof error === 'object' && 'name' in error ? error.name : '';
-  if (name === 'NotAllowedError' || name === 'SecurityError') return '没有摄像头权限：请在浏览器地址栏允许后重试';
+  if (name === 'NotAllowedError' || name === 'SecurityError') return desktop
+    ? '没有摄像头权限：请打开 Windows 设置 → 隐私和安全性 → 相机，允许桌面应用访问，然后重启喵动'
+    : '没有摄像头权限：请在浏览器地址栏允许后重试；也请检查 Windows 相机隐私设置';
   if (name === 'NotFoundError' || name === 'OverconstrainedError') return '没有找到所选摄像头：请重新连接或选择其他设备';
   if (name === 'NotReadableError' || name === 'AbortError') return '摄像头正被其他程序占用：关闭占用程序后重试';
   return '摄像头启动失败：请检查设备和权限后重试';

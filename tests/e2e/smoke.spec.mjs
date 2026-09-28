@@ -43,7 +43,7 @@ test('零基础入口、键盘导入与本地设置可用', async ({ page }) => 
   await expect(page.locator('#sensitivity')).toHaveValue('1.4');
 });
 
-test('IndexedDB v1 模型记录会迁移为 v3 Blob', async ({ page }) => {
+test('IndexedDB v1 模型记录会迁移为 v4 Blob 并删除旧大文件', async ({ page }) => {
   await page.goto('/help.html');
   await page.evaluate(async () => {
     await new Promise((resolve, reject) => {
@@ -65,7 +65,7 @@ test('IndexedDB v1 模型记录会迁移为 v3 Blob', async ({ page }) => {
   });
   await page.goto('/');
   await expect.poll(() => page.evaluate(async () => new Promise((resolve, reject) => {
-    const request = indexedDB.open('miao-motion', 3);
+    const request = indexedDB.open('miao-motion', 4);
     request.onsuccess = () => {
       const db = request.result;
       const get = db.transaction('models').objectStore('models').get('current');
@@ -73,6 +73,12 @@ test('IndexedDB v1 模型记录会迁移为 v3 Blob', async ({ page }) => {
       get.onerror = () => reject(get.error);
     };
     request.onerror = () => reject(request.error);
+  }))).toBe(true);
+  expect(await page.evaluate(() => new Promise(resolve => {
+    const request = indexedDB.open('miao-motion'); request.onsuccess = () => {
+      const db = request.result; const get = db.transaction('assets').objectStore('assets').get('current-vrm');
+      get.onsuccess = () => { resolve(get.result === undefined); db.close(); };
+    };
   }))).toBe(true);
 });
 
@@ -82,6 +88,11 @@ test('广播模式在缺少模型时给出可操作反馈', async ({ page }) => 
   await expect(page.locator('#broadcast-status')).toBeVisible();
   await expect(page.locator('#broadcast-status-title')).toHaveText('还没有可用角色');
   await expect(page.locator('#broadcast-import')).toBeVisible();
+  const stage = await page.locator('#stage').boundingBox();
+  expect(stage).toEqual({ x: 0, y: 0, width: 1280, height: 720 });
+  const status = await page.locator('#broadcast-status').boundingBox();
+  expect(status.y).toBeGreaterThan(0);
+  expect(status.y + status.height).toBeLessThanOrEqual(720);
 });
 
 test('摄像头权限等待期间拒绝重复启动', async ({ page }) => {
@@ -102,7 +113,11 @@ test('摄像头权限等待期间拒绝重复启动', async ({ page }) => {
   await page.goto('/');
   await page.locator('#onboarding-later').click();
   await page.locator('#camera-toggle').click();
-  await page.locator('#camera-toggle').dispatchEvent('click');
+  await page.locator('#open-guide').click();
+  await page.locator('#onboarding-next').click();
+  await page.locator('#onboarding-skip').click();
+  // Exercise the second entry handler directly while its disabled state is bypassed.
+  await page.locator('#onboarding-camera').evaluate(button => { button.disabled = false; button.click(); });
   await expect(page.locator('#camera-toggle')).toBeDisabled();
   await expect.poll(() => page.evaluate(() => window.__cameraRequests)).toBe(1);
 });
@@ -141,7 +156,7 @@ test('损坏模型可恢复，最小 VRM 可进入角色库和模型医生', asy
   await expect(page.locator('#model-status')).toContainText('模型可用', { timeout: 15_000 });
   await page.locator('.advanced-settings > summary').click();
   await expect(page.locator('#model-library')).not.toHaveValue('');
-  await expect(page.locator('#diagnostics')).toContainText('Humanoid 必需骨骼');
+  await expect(page.locator('#diagnostics')).toContainText('身体骨架');
   await expect(page.locator('#diagnostics')).toContainText('MIAO Motion contributors');
   await page.locator('#smoothing').fill('1.7');
   await page.locator('#output-aspect').selectOption('9:16');

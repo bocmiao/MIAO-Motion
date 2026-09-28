@@ -9,6 +9,8 @@ export default defineConfig({
   use: {
     baseURL: 'http://127.0.0.1:4173',
     browserName: 'chromium',
+    viewport: { width: 1280, height: 720 },
+    launchOptions: { ...(process.env.MIAO_BROWSER ? { executablePath: process.env.MIAO_BROWSER } : {}), args: ['--no-sandbox', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'] },
     trace: 'retain-on-failure',
   },
   webServer: {

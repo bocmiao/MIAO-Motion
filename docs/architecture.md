@@ -16,7 +16,7 @@ The frontend remains a single Vite application and now has a Tauri 2 shell that 
 ## Components
 
 - `src/main.ts`: camera selection, MediaPipe lifecycle, VRM loading, rendering and UI state.
-- `src/storage.mjs`: IndexedDB v3 models/profiles CRUD and v1 migration.
+- `src/storage.mjs`: IndexedDB v4 models/profiles CRUD, transactional file deduplication and legacy cleanup.
 - `src/app-utils.mjs`: validated settings/profile, camera and model error messages, file limits, tracking quality and model performance classification.
 - `src/capture.mjs`: camera constraints/errors, media-track cleanup and GPU→CPU detector fallback.
 - `src/broadcast.mjs`: browser-source URL and broadcast background transitions.
@@ -25,17 +25,17 @@ The frontend remains a single Vite application and now has a Tauri 2 shell that 
 - `tests/*.test.mjs`: granular solver, settings, declarations, lifecycle, storage, launcher and DOM contracts using Node's built-in test runner.
 - `tests/e2e`: Playwright smoke checks for onboarding, keyboard import, settings, model fixtures/library, broadcast feedback and camera retry.
 - `tests/fixtures`: deterministic project-owned minimal and corrupt VRM inputs.
-- IndexedDB v3: multiple Blob models with thumbnails/recent time plus named profiles. Upgrade migrates v1 `assets/current-vrm` and retains v2 models.
+- IndexedDB v4: multiple Blob models with thumbnails/recent time plus named profiles. Upgrade migrates v1 `assets/current-vrm`, retains v2/v3 models and removes the legacy Blob only in the same successful transaction.
 - LocalStorage: camera/background/mirror/sensitivity/smoothing/render/view/output/onboarding settings and up to 80 sanitized diagnostic events.
 - `src-tauri`: transparent Tauri 2 WebView shell with core-only permissions and Windows NSIS configuration.
 
 ## Motion mapping
 
-- MediaPipe facial transformation matrix → `inverse(neutral) × current` relative quaternion → bounded VRM normalized head rotation.
+- MediaPipe facial transformation matrix → `inverse(neutral) × current` relative quaternion → bounded VRM normalized head rotation. Mirror off preserves pitch/yaw/roll; mirror on keeps pitch and negates yaw/roll. VRM 0.x then negates quaternion x/z to match the VRM 1.0 normalized-bone frame. Model switches retain camera neutral calibration.
 - `eyeBlinkLeft/Right` → VRM separate blink expressions, or combined blink fallback.
 - `jawOpen` + `mouthFunnel/Pucker` → VRM `aa` and `oh`.
 - `mouthSmileLeft/Right` → VRM `happy` with reduced weight.
-- eye look blendshapes → bounded degree yaw/pitch through VRM LookAt, covering bone and expression appliers.
+- eye look blendshapes → bounded degree yaw/pitch through VRM LookAt: positive pitch looks DOWN, negative looks UP, covering bone and expression appliers.
 - one mirror setting consistently swaps left/right eyelids and gaze, and reverses head yaw/roll.
 - no-face state → neutral head, idle blink and subtle chest breathing.
 
@@ -56,7 +56,8 @@ Missing the normalized head bone is a blocking issue. The performance doctor als
 - Imported VRM data is stored only in the browser origin's IndexedDB.
 - Build preparation copies WASM from the lockfile-pinned MediaPipe package and verifies the Face Landmarker model against a pinned SHA-256; runtime loads both from the local origin.
 - A restrictive CSP limits runtime connections and executable resources to the local origin/blob URLs.
-- The Node-free portable package uses a PowerShell `HttpListener` bound to `127.0.0.1`; its path check rejects traversal outside `dist`.
+- The Node-free portable package uses a PowerShell `TcpListener` bound to `127.0.0.1`, without http.sys URL ACLs. Bounded requests, per-client exception isolation and path checks protect the local static-file server.
+- Tauri grants Camera only to the bundled origin (or exact local development origin in debug builds); other permission kinds and external navigation are denied. OS privacy policy is never bypassed.
 - No telemetry or crash upload exists.
 - Settings and diagnostics are exported only after a user click. Diagnostic reports exclude frames, model content, local paths and camera device IDs.
 
@@ -70,7 +71,7 @@ Missing the normalized head bone is a blocking issue. The performance doctor als
 
 ## Accepted next architecture decisions
 
-- Tauri 2 is the selected Windows desktop shell for v0.3; Electron is no longer the default candidate.
+- Tauri 2 is already packaged in v0.2.1; Electron is not a parallel implementation.
 - Face-only inference stays on the current path until profiling justifies a migration.
 - Pose and Hand inference must be prototyped off the render thread before either becomes a default feature.
 - Desktop packaging reuses the prepared MediaPipe runtime/model assets so core tracking works offline.
