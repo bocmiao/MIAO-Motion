@@ -236,7 +236,7 @@ let storedProfiles: StoredProfile[] = [];
 let thumbnailPendingId = '';
 const clock = new THREE.Clock();
 const bodyTracking = setupBodyTracking(() => currentVrm, () => settings.mirror);
-const studio = setupStudioTools(renderer, () => currentVrm, () => currentModelId, message => showToast(message));
+const studio = setupStudioTools(renderer, () => currentVrm, () => currentModelId, message => showToast(message), () => updateBroadcastStatus());
 const nativeCamera = setupNativeCamera(canvas, () => Boolean(currentVrm) && !modelPreparing);
 let lastPhoneFrame = 0;
 const phone = setupPhone(packet => {
@@ -300,7 +300,7 @@ const updateBroadcastStatus = () => {
     broadcastStatus.hidden = false;
     return;
   }
-  if (!cameraStream) {
+  if (!cameraStream && !studio.microphoneActive() && !(lastPhoneFrame > 0 && performance.now() - lastPhoneFrame < 500)) {
     broadcastStatusTitle.textContent = cameraStarting ? '正在开启摄像头' : '摄像头尚未就绪';
     broadcastStatusDetail.textContent = cameraStarting ? '请完成权限确认。' : cameraStatus.textContent ?? '请退出直播画面并检查摄像头。';
     broadcastImportButton.hidden = true;
@@ -998,6 +998,15 @@ const copyObsUrl = async () => {
 };
 
 importButton.addEventListener('click', () => fileInput.click());
+document.getElementById('load-miao')!.addEventListener('click', async event => {
+  const button = event.currentTarget as HTMLButtonElement; button.disabled = true;
+  try {
+    const response = await fetch(new URL('./examples/miao-cat.vrm', document.baseURI));
+    if (!response.ok) throw new Error('原创示例文件不完整');
+    await loadVrm(new File([await response.blob()], '喵小动 · 原创猫咪.vrm', { type: 'model/vrm', lastModified: 0 }));
+  } catch { showToast('无法读取原创角色，请重新解压完整程序'); }
+  finally { button.disabled = false; }
+});
 fileInput.addEventListener('change', () => {
   const file = fileInput.files?.[0];
   if (file) void loadVrm(file);

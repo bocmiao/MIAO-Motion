@@ -1,8 +1,8 @@
 $ErrorActionPreference = 'Stop'
 $dll = (Resolve-Path 'native/build/Release/softcam.dll').Path
 $reg = Join-Path $env:SystemRoot 'System32/regsvr32.exe'
-& $reg /s $dll
-if ($LASTEXITCODE -ne 0) { throw '原生摄像头注册失败' }
+$registration = Start-Process -FilePath $reg -ArgumentList @('/s', "`"$dll`"") -Wait -PassThru -WindowStyle Hidden
+if ($registration.ExitCode -ne 0) { throw "原生摄像头注册失败：$($registration.ExitCode)" }
 $sender = $null
 try {
   if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue)) { throw '验证接收帧需要 ffmpeg' }
@@ -15,6 +15,6 @@ try {
   if ($LASTEXITCODE -ne 0) { throw '原生摄像头颜色或方向验证失败' }
 } finally {
   if ($sender -and -not $sender.HasExited) { Stop-Process -Id $sender.Id -Force }
-  & $reg /u /s $dll
-  if ($LASTEXITCODE -ne 0) { throw '原生摄像头卸载失败' }
+  $removal = Start-Process -FilePath $reg -ArgumentList @('/u', '/s', "`"$dll`"") -Wait -PassThru -WindowStyle Hidden
+  if ($removal.ExitCode -ne 0) { throw "原生摄像头卸载失败：$($removal.ExitCode)" }
 }

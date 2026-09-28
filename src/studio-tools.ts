@@ -6,7 +6,7 @@ import { version } from '../package.json';
 const element = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const expressions = ['happy', 'angry', 'sad', 'relaxed', 'surprised'];
 
-export function setupStudioTools(renderer: WebGLRenderer, avatar: () => VRM | null, modelId: () => string, notify: (text: string) => void) {
+export function setupStudioTools(renderer: WebGLRenderer, avatar: () => VRM | null, modelId: () => string, notify: (text: string) => void, inputChanged: () => void) {
   const materialSelect = element<HTMLSelectElement>('avatar-material');
   const colorInput = element<HTMLInputElement>('avatar-color');
   const expressionSelect = element<HTMLSelectElement>('expression-preset');
@@ -63,6 +63,7 @@ export function setupStudioTools(renderer: WebGLRenderer, avatar: () => VRM | nu
     void audio?.close(); audio = null; analyser = null;
     micButton.textContent = '开启语音嘴型'; micButton.disabled = false;
     micStatus.textContent = '麦克风未开启';
+    inputChanged();
   };
   micButton.addEventListener('click', async () => {
     if (mic) { stopMicrophone(); return; }
@@ -83,6 +84,7 @@ export function setupStudioTools(renderer: WebGLRenderer, avatar: () => VRM | nu
       mic.getAudioTracks().forEach(t => t.addEventListener('ended', stopMicrophone));
       micButton.textContent = '关闭语音嘴型';
       micStatus.textContent = '语音嘴型已开启 · 不播放、不录音、不上传';
+      inputChanged();
     } catch {
       pending?.getTracks().forEach(t => t.stop());
       if (generation !== micGeneration) return;
@@ -105,6 +107,7 @@ export function setupStudioTools(renderer: WebGLRenderer, avatar: () => VRM | nu
 
   let windowStart = 0, frames = 0, slowWindows = 0, fastWindows = 0, ratio = 1.5;
   return {
+    microphoneActive: () => Boolean(mic),
     reloadAppearance() {
       const found = new Set<Material & { color: Color }>();
       avatar()?.scene.traverse(object => {

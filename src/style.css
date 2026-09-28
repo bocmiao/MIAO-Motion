@@ -97,7 +97,7 @@ button:disabled { cursor: not-allowed; opacity: 0.42; }
 
 .control-panel { display: grid; align-content: start; gap: 10px; }
 
-.step-card, .tracking-card, .advanced-settings, .library-settings, .motion-settings, .profile-settings, .model-doctor, .preflight-check, .data-tools, .broadcast-controls {
+.step-card, .tracking-card, :is(.advanced-settings, .studio-settings), .library-settings, .motion-settings, .profile-settings, .model-doctor, .preflight-check, .data-tools, .broadcast-controls {
   border: 1px solid rgba(38, 43, 54, 0.09);
   border-radius: 19px;
   background: rgba(255, 255, 255, 0.74);
@@ -164,10 +164,10 @@ button:focus-visible, .stage:focus-visible { outline: 3px solid #e5a13e; outline
 .view-presets { display: grid; grid-template-columns: 74px repeat(3, 1fr); align-items: center; gap: 7px; color: #687080; font-size: 12px; }
 .view-presets .soft-button { min-height: 34px; padding: 6px; }
 
-.advanced-settings { padding: 14px; }
-.advanced-settings > summary { cursor: pointer; font-weight: 800; }
-.advanced-settings-content { margin-top: 12px; display: grid; gap: 10px; }
-.advanced-settings .library-settings, .advanced-settings .motion-settings, .advanced-settings .profile-settings, .advanced-settings .model-doctor, .advanced-settings .preflight-check, .advanced-settings .data-tools { border-radius: 14px; background: #fff; box-shadow: none; }
+:is(.advanced-settings, .studio-settings) { padding: 14px; }
+:is(.advanced-settings, .studio-settings) > summary { cursor: pointer; font-weight: 800; }
+:is(.advanced-settings, .studio-settings)-content { margin-top: 12px; display: grid; gap: 10px; }
+:is(.advanced-settings, .studio-settings) .library-settings, :is(.advanced-settings, .studio-settings) .motion-settings, :is(.advanced-settings, .studio-settings) .profile-settings, :is(.advanced-settings, .studio-settings) .model-doctor, :is(.advanced-settings, .studio-settings) .preflight-check, :is(.advanced-settings, .studio-settings) .data-tools { border-radius: 14px; background: #fff; box-shadow: none; }
 
 .model-doctor { padding: 15px 16px; }
 .model-doctor > div { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
@@ -298,7 +298,7 @@ html:has(body.broadcast-mode) { background: transparent; }
 @media (max-width: 900px) {
   .workspace { grid-template-columns: 1fr; }
   .control-panel { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .tracking-card, .advanced-settings, .library-settings, .motion-settings, .profile-settings, .model-doctor, .preflight-check, .data-tools, .broadcast-controls { min-height: 120px; }
+  .tracking-card, :is(.advanced-settings, .studio-settings), .library-settings, .motion-settings, .profile-settings, .model-doctor, .preflight-check, .data-tools, .broadcast-controls { min-height: 120px; }
   .stage-card { min-height: 550px; }
 }
 
@@ -309,7 +309,7 @@ html:has(body.broadcast-mode) { background: transparent; }
   .intro { padding-top: 24px; }
   .control-panel { grid-template-columns: 1fr; }
   .step-card { grid-template-columns: 34px minmax(0, 1fr) auto; }
-  .tracking-card, .advanced-settings, .library-settings, .motion-settings, .profile-settings, .model-doctor, .preflight-check, .data-tools, .broadcast-controls { min-height: auto; }
+  .tracking-card, :is(.advanced-settings, .studio-settings), .library-settings, .motion-settings, .profile-settings, .model-doctor, .preflight-check, .data-tools, .broadcast-controls { min-height: auto; }
   .stage-card { min-height: 480px; border-radius: 21px; }
   .stage { min-height: 420px; }
   footer { align-items: flex-start; flex-direction: column; justify-content: center; }

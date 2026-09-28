@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "version": "node scripts/sync-version.mjs && git add src-tauri/Cargo.toml src-tauri/Cargo.lock",
-    "prepare:assets": "node scripts/prepare-mediapipe.mjs && node scripts/prepare-example.mjs && node scripts/prepare-licenses.mjs && node scripts/prepare-body-models.mjs",
+    "prepare:assets": "node scripts/prepare-mediapipe.mjs && node scripts/prepare-example.mjs && node scripts/prepare-licenses.mjs && node scripts/prepare-body-models.mjs && node scripts/generate-miao-avatar.mjs",
     "fixtures:generate": "node scripts/generate-test-vrm.mjs",
     "predev": "npm run prepare:assets",
     "dev": "vite",
