@@ -1,5 +1,7 @@
 # Architecture
 
+The product scope, milestones and release gates are defined in [`PROJECT_PLAN.md`](PROJECT_PLAN.md) and [`ACCEPTANCE.md`](ACCEPTANCE.md).
+
 ## v0.2.0 runtime
 
 ```text
@@ -42,10 +44,18 @@ Missing optional expressions are ignored. The model doctor reports the gap inste
 - Remote MediaPipe WASM and model URLs are pinned to an explicit package/model version.
 - No telemetry or crash upload exists.
 
-## Deferred until measured need
+## Not part of the v0.2.0 runtime
 
 - Body and hand landmarkers.
-- Tauri/Electron desktop wrapper.
+- Tauri 2 desktop wrapper; scheduled for v0.3 after the browser prototype passes hardware acceptance.
 - OBS WebSocket automation.
 - Built-in avatar catalogue and character editor.
 - Worker-based inference; the main-thread implementation is retained until real profiling shows dropped rendering frames.
+
+## Accepted next architecture decisions
+
+- Tauri 2 is the selected Windows desktop shell for v0.3; Electron is no longer the default candidate.
+- Face-only inference stays on the current path until profiling justifies a migration.
+- Pose and Hand inference must be prototyped off the render thread before either becomes a default feature.
+- Desktop builds bundle MediaPipe runtime/model assets so core tracking works offline.
+- Spout2 is a gated feasibility spike, not a v1.0 dependency until measured against transparent-window capture.

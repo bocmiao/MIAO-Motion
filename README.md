@@ -73,6 +73,13 @@ http://127.0.0.1:4173/?broadcast=1&background=transparent
 - 首次加载 MediaPipe 资源需要联网；摄像头帧不会发送给 Google 或项目服务器。
 - OBS 对摄像头权限的处理随系统和 OBS 版本不同，绿幕窗口捕获是可靠后备方案。
 
+## 项目计划
+
+- [完整项目计划书](docs/PROJECT_PLAN.md)：产品定位、竞品、开源复用、功能范围、架构、路线图、风险与发布策略。
+- [版本验收清单](docs/ACCEPTANCE.md)：从 v0.2.1 实机验证到 v1.0 发布的逐项门槛。
+- [技术架构](docs/architecture.md)：当前代码链路与模块边界。
+- [贡献指南](CONTRIBUTING.md)：开发流程、范围与许可证要求。
+
 ## 开源协议
 
 源代码使用 [Mozilla Public License 2.0](LICENSE)。角色、模型、字体和其他美术资产不自动继承代码协议，必须单独确认授权，详见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
