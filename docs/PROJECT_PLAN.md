@@ -6,6 +6,8 @@
 >
 > 项目性质：免费、开源、本地优先；源代码使用 MPL-2.0
 
+> 2026-09-28 补充：Claude 深度审计提出的阶段 0/1 调整已并入实现与文档。逐项状态见 [`CLAUDE_AUDIT_REMEDIATION.md`](CLAUDE_AUDIT_REMEDIATION.md)，原始审计见 [`claude审计报告.md`](claude审计报告.md)。需要真实设备、授权资产或外部账号的工作继续受验收门槛约束。
+
 ## 1. 一页结论
 
 MIAO Motion 是面向零基础用户的 Windows 端 3D 虚拟形象动捕工具。用户只需普通摄像头和一个 VRM 模型，即可完成角色导入、模型检查、动作校准和 OBS 直播。

@@ -19,6 +19,5 @@ Every behavior change needs one smallest useful check: a dependency-free unit ch
 ## Licenses and assets
 
 - Code contributions are accepted under MPL-2.0.
-- Use `Signed-off-by` to certify the Developer Certificate of Origin.
 - Do not submit avatars, textures, fonts, model weights or binaries without a clear source and redistribution license.
 - Do not upload user models or commercial models as bug samples.

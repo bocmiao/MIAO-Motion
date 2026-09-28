@@ -11,8 +11,9 @@
     "isolatedModules": true,
     "noEmit": true,
     "strict": true,
+    "allowJs": true,
+    "checkJs": true,
     "noUncheckedIndexedAccess": true
   },
   "include": ["src"]
 }
-

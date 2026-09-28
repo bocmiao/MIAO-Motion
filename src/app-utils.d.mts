@@ -1,6 +1,6 @@
 export type Background = 'studio' | 'green' | 'transparent';
 export type RenderQuality = 'performance' | 'balanced' | 'quality';
-export type AppSettings = { background: Background; cameraId: string; onboardingComplete: boolean; renderQuality: RenderQuality; sensitivity: number };
+export type AppSettings = { background: Background; cameraId: string; mirror: boolean; onboardingComplete: boolean; renderQuality: RenderQuality; sensitivity: number };
 export type ModelMetrics = { fileBytes: number; triangles: number; materials: number; textures: number; maxTextureSize: number; textureBytes: number; geometryBytes: number };
 export const DEFAULT_SETTINGS: Readonly<AppSettings>;
 export function parseSettings(raw: string | null): AppSettings;
@@ -12,7 +12,8 @@ export function scaleMotion<T extends Record<string, number>>(motion: T, sensiti
 export function onboardingState(step: number, hasModel: boolean, hasCamera: boolean): { current: number; canContinue: boolean; nextLabel: string; progress: string };
 export function renderPixelRatio(quality: RenderQuality, devicePixelRatio?: number): number;
 export function estimateModelPerformance(metrics: ModelMetrics): { level: 'good' | 'warning' | 'heavy'; label: string; textureMegabytes: number };
-export function createSettingsProfile(settings: AppSettings): { format: 'miao-motion-settings'; version: 1; settings: Pick<AppSettings, 'background' | 'renderQuality' | 'sensitivity'> };
-export function parseSettingsProfile(raw: string): Pick<AppSettings, 'background' | 'renderQuality' | 'sensitivity'> | null;
+export function createSettingsProfile(settings: AppSettings): { format: 'miao-motion-settings'; version: 1; settings: Pick<AppSettings, 'background' | 'mirror' | 'renderQuality' | 'sensitivity'> };
+export function parseSettingsProfile(raw: string): Pick<AppSettings, 'background' | 'mirror' | 'renderQuality' | 'sensitivity'> | null;
 export function modelLoadErrorMessage(error: unknown): string;
 export function sanitizeDiagnosticMessage(value: unknown): string;
+export function coarseUserAgent(userAgent: string): string;

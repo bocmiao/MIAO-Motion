@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
+import test from 'node:test';
 import {
   DEFAULT_SETTINGS,
   cameraConstraints,
   cameraErrorMessage,
+  coarseUserAgent,
   createSettingsProfile,
   estimateModelPerformance,
   modelLoadErrorMessage,
@@ -16,15 +18,18 @@ import {
   validateModelFile,
 } from '../src/app-utils.mjs';
 
+test('settings parsing uses safe defaults and bounds', () => {
 assert.deepEqual(parseSettings(null), DEFAULT_SETTINGS);
 assert.deepEqual(parseSettings('{broken'), DEFAULT_SETTINGS);
 assert.deepEqual(parseSettings('{"background":"green","cameraId":"cam-2","sensitivity":9}'), {
-  background: 'green', cameraId: 'cam-2', onboardingComplete: false, renderQuality: 'balanced', sensitivity: 1.5,
+  background: 'green', cameraId: 'cam-2', mirror: true, onboardingComplete: false, renderQuality: 'balanced', sensitivity: 1.5,
 });
 assert.equal(parseSettings('{"onboardingComplete":true}').onboardingComplete, true);
 assert.equal(parseSettings('{"renderQuality":"quality"}').renderQuality, 'quality');
 assert.equal(parseSettings('{"renderQuality":"unknown"}').renderQuality, 'balanced');
+});
 
+test('model, camera, tracking, onboarding, and render helpers', () => {
 assert.equal(validateModelFile({ name: 'avatar.png', size: 2 }, 100), '请选择 .vrm 模型文件');
 assert.equal(validateModelFile({ name: 'avatar.vrm', size: 0 }, 100), '模型文件为空，请重新导出后再试');
 assert.match(validateModelFile({ name: 'avatar.vrm', size: 101 }, 100), /模型超过/);
@@ -54,14 +59,21 @@ const normalModel = estimateModelPerformance({ fileBytes: 20e6, triangles: 50_00
 assert.equal(normalModel.level, 'good');
 assert.equal(estimateModelPerformance({ fileBytes: 90e6, triangles: 50_000, materials: 10, textures: 8, maxTextureSize: 2048, textureBytes: 100e6, geometryBytes: 5e6 }).level, 'warning');
 assert.equal(estimateModelPerformance({ fileBytes: 20e6, triangles: 250_000, materials: 10, textures: 8, maxTextureSize: 2048, textureBytes: 100e6, geometryBytes: 5e6 }).level, 'heavy');
+});
 
+test('settings profiles, error hints, and diagnostics privacy', () => {
 const profile = createSettingsProfile({ ...DEFAULT_SETTINGS, background: 'green', sensitivity: 1.4 });
-assert.deepEqual(parseSettingsProfile(JSON.stringify(profile)), { background: 'green', renderQuality: 'balanced', sensitivity: 1.4 });
+assert.deepEqual(parseSettingsProfile(JSON.stringify(profile)), { background: 'green', mirror: true, renderQuality: 'balanced', sensitivity: 1.4 });
 assert.equal(parseSettingsProfile('{"format":"other"}'), null);
 assert.match(modelLoadErrorMessage(new Error('WebGL context lost due to allocation')), /内存或显存/);
 assert.match(modelLoadErrorMessage(new SyntaxError('Unexpected token')), /文件结构/);
 assert.doesNotMatch(sanitizeDiagnosticMessage(new Error('read C:\\Users\\Miao Luo\\avatar.vrm')), /Miao|avatar/);
 assert.equal(sanitizeDiagnosticMessage('failed file:///home/miao/avatar.vrm)'), 'failed file:[redacted])');
 assert.equal(sanitizeDiagnosticMessage('failed blob:http://127.0.0.1/private-id'), 'failed blob:[redacted]');
-
-console.log('app utility checks passed');
+assert.equal(sanitizeDiagnosticMessage('read //server/share/private/avatar.vrm'), 'read [local-path-redacted]');
+assert.equal(sanitizeDiagnosticMessage('read C:/Users/Miao/avatar.vrm'), 'read [local-path-redacted]');
+assert.equal(sanitizeDiagnosticMessage('read /mnt/c/Users/Miao/avatar.vrm'), 'read [local-path-redacted]');
+assert.equal(sanitizeDiagnosticMessage('read /Volumes/Private/avatar.vrm'), 'read [local-path-redacted]');
+assert.equal(coarseUserAgent('Mozilla/5.0 Chrome/140.0.0.0 Safari/537.36'), 'Chrome/140');
+assert.equal(coarseUserAgent('secret agent'), 'Unknown browser');
+});

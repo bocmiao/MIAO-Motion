@@ -16,11 +16,21 @@
 - 性能优先、均衡、清晰优先三档画质，可导入/导出设置。
 - 可删除浏览器中的模型副本，并下载不含画面、模型内容、文件路径和设备编号的诊断报告。
 - 影棚、绿幕、透明三种背景。
-- 保存最后导入的模型到浏览器本地，OBS 页面可自动恢复。
+- 保存最后导入的模型到当前浏览器；不同浏览器、端口或 OBS 内置浏览器不共享存储。
 - 提供无界面直播模式及 OBS 浏览器源地址。
 - 摄像头画面与模型不上传服务器。
 
 ## Windows 小白启动方法
+
+### 推荐：免 Node.js 便携包
+
+1. 在 GitHub Actions 的成功构建中下载 `MIAO-Motion-portable-windows`，并解压 ZIP。
+2. 双击 `start-portable.bat`。不要直接在压缩包预览窗口中运行。
+3. 浏览器打开后，选择 VRM、开启摄像头，再做正面校准。
+
+便携包包含预构建网页、离线动捕资源、许可证和本地 PowerShell 服务器，不需要安装 Node.js。正式 Release 和国内镜像仍要等真机验收。
+
+### 源码版
 
 1. 安装 [Node.js 22 LTS 或更新版本](https://nodejs.org/zh-cn)。
 2. 下载并解压本仓库。
@@ -28,7 +38,7 @@
 4. 浏览器打开后，点击“选择 VRM”，再点击“开启摄像头”。
 5. 正对摄像头点击“正面校准”。
 
-第一次执行构建需要联网下载并校验 Google Face Landmarker 模型；MediaPipe WASM 从锁定的 npm 依赖复制。生成的运行包包含这些资源，启动和推理无需联网。
+第一次执行构建需要联网准备依赖和 Face Landmarker 模型。下载困难时可先执行 `npm config set registry https://registry.npmmirror.com`；也可用 `MIAO_FACE_MODEL_URL` 指定镜像 URL，或用 `MIAO_FACE_MODEL_PATH` 指定已下载文件。文件仍必须通过固定 SHA-256 校验。生成的运行包启动和推理无需联网。
 
 完整图文步骤、常见错误和 OBS 后备方案见 [零基础使用教程](docs/BEGINNER_GUIDE.md)。
 
@@ -52,17 +62,23 @@ npm run start
 
 ```bash
 npm test
+npm run typecheck
+npm run test:e2e
 ```
 
 ## OBS 使用
 
-### 推荐：浏览器来源
+### 推荐：绿幕窗口捕获
 
-1. 保持自动打开的 `MIAO Motion Server` 窗口运行。
-2. 在普通页面先导入一次模型。
-3. 点击“复制 OBS 浏览器源地址”。
-4. OBS → 来源 → 添加“浏览器” → 粘贴地址。
-5. 推荐尺寸 `1920 × 1080`，在 OBS 的“交互”窗口允许摄像头权限。
+1. 在普通页面导入模型并开启摄像头。
+2. 把背景切换为“绿幕”，再点击“进入直播画面”。
+3. OBS → 来源 → 添加“窗口捕获”，选择 MIAO Motion 窗口。
+4. 给来源添加“色度键”滤镜并选择绿色。
+5. 不要最小化或完全遮挡 MIAO Motion 窗口，避免 Chromium 后台节流使动作冻结。
+
+### 进阶实验：OBS 浏览器来源
+
+OBS 内置浏览器不与 Chrome/Edge 共享 IndexedDB，通常也不会弹出摄像头授权。需要用 `--enable-media-stream` 参数启动 OBS，在 OBS“交互”窗口内重新选择 VRM；不要让普通页面与 OBS 页面同时占用摄像头。
 
 地址格式：
 
@@ -70,7 +86,7 @@ npm test
 http://127.0.0.1:4173/?broadcast=1&background=transparent
 ```
 
-如果 OBS 环境无法取得摄像头权限，可在普通浏览器使用“背景：绿幕”和“进入直播画面”，再用 OBS 窗口捕获配合色度键。
+广播页在缺少模型、摄像头或发生错误时会显示中文状态浮层；正常工作后自动隐藏。
 
 ## 当前边界与验收状态
 
@@ -87,6 +103,8 @@ http://127.0.0.1:4173/?broadcast=1&background=transparent
 - [当前验证状态](docs/VALIDATION_STATUS.md)：已自动验证、代码审查覆盖和必须等待真机的项目。
 - [项目现状审计](docs/PROJECT_STATUS.md)：已经完成、部分完成、尚未完成和后续优化优先级。
 - [零基础使用教程](docs/BEGINNER_GUIDE.md)：从安装 Node.js、制作 VRM 到接入 OBS。
+- [直播与会议软件接入](docs/LIVE_PLATFORM_GUIDE.md)：OBS、直播姬/直播伴侣和腾讯会议通用接入。
+- [Claude 审计整改对照](docs/CLAUDE_AUDIT_REMEDIATION.md)：P0–P3 每项结果、证据和待人工验收项。
 - [版本记录](CHANGELOG.md)：候选版本新增、改进和待验证内容。
 - [技术架构](docs/architecture.md)：当前代码链路与模块边界。
 - [贡献指南](CONTRIBUTING.md)：开发流程、范围与许可证要求。

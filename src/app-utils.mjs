@@ -3,6 +3,7 @@ const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 export const DEFAULT_SETTINGS = Object.freeze({
   background: 'studio',
   cameraId: '',
+  mirror: true,
   onboardingComplete: false,
   renderQuality: 'balanced',
   sensitivity: 1,
@@ -20,6 +21,7 @@ export function parseSettings(raw) {
     return {
       background,
       cameraId: typeof value?.cameraId === 'string' ? value.cameraId : '',
+      mirror: value?.mirror !== false,
       onboardingComplete: value?.onboardingComplete === true,
       renderQuality,
       sensitivity: Number.isFinite(value?.sensitivity)
@@ -55,7 +57,7 @@ export function cameraErrorMessage(error) {
   if (name === 'NotAllowedError' || name === 'SecurityError') return '没有摄像头权限：请在浏览器地址栏允许后重试';
   if (name === 'NotFoundError' || name === 'OverconstrainedError') return '没有找到所选摄像头：请重新连接或选择其他设备';
   if (name === 'NotReadableError' || name === 'AbortError') return '摄像头正被其他程序占用：关闭占用程序后重试';
-  return '摄像头启动失败：请检查设备、权限和网络后重试';
+  return '摄像头启动失败：请检查设备和权限后重试';
 }
 
 export function trackingQuality(fps, faceVisible) {
@@ -110,6 +112,7 @@ export function createSettingsProfile(settings) {
     version: 1,
     settings: {
       background: settings.background,
+      mirror: settings.mirror,
       renderQuality: settings.renderQuality,
       sensitivity: settings.sensitivity,
     },
@@ -123,6 +126,7 @@ export function parseSettingsProfile(raw) {
     const parsed = parseSettings(JSON.stringify(profile.settings));
     return {
       background: parsed.background,
+      mirror: parsed.mirror,
       renderQuality: parsed.renderQuality,
       sensitivity: parsed.sensitivity,
     };
@@ -148,6 +152,15 @@ export function sanitizeDiagnosticMessage(value) {
   return raw
     .replace(/blob:[^\s)]+/gi, 'blob:[redacted]')
     .replace(/file:\/\/[^\n)]*/gi, 'file:[redacted]')
-    .replace(/[a-z]:\\[^\n)]*/gi, '[local-path-redacted]')
-    .replace(/\/(?:Users|home)\/[^\n)]*/g, '[local-path-redacted]');
+    .replace(/(^|\s)\/\/[^/\s]+\/[^\n)]*/g, '$1[local-path-redacted]')
+    .replace(/\\\\[^\\\s]+\\[^\n)]*/g, '[local-path-redacted]')
+    .replace(/[a-z]:[\\/][^\n)]*/gi, '[local-path-redacted]')
+    .replace(/\/(?:Users|home|Volumes|mnt\/[a-z]\/Users)\/[^\n)]*/gi, '[local-path-redacted]');
+}
+
+export function coarseUserAgent(userAgent) {
+  const match = userAgent.match(/(?:Edg|Chrome|Firefox)\/(\d+)/);
+  if (match) return `${match[0].split('/')[0]}/${match[1]}`;
+  const safari = userAgent.match(/Version\/(\d+).+Safari\//);
+  return safari ? `Safari/${safari[1]}` : 'Unknown browser';
 }

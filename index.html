@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="MIAO Motion：免费开源、本地优先的 VRM 动漫角色实时动捕工具" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' blob:; img-src 'self' blob: data:; media-src 'self' blob:; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'none'" />
     <title>MIAO Motion / 喵动</title>
   </head>
   <body>
@@ -54,12 +55,15 @@
             <p id="tracking-status" role="status" aria-live="polite">等待开启摄像头</p>
             <div class="quality-row">
               <span>追踪质量</span>
-              <meter id="tracking-quality" min="0" max="30" low="15" high="24" optimum="30" value="0">0</meter>
+              <meter id="tracking-quality" aria-label="实时动捕每秒帧数" min="0" max="30" low="15" high="24" optimum="30" value="0">0</meter>
               <output id="tracking-quality-label" for="tracking-quality">等待人脸</output>
             </div>
             <button id="calibrate" class="text-button" type="button" disabled>正面校准</button>
           </section>
 
+          <details class="advanced-settings">
+            <summary>高级设置与模型诊断</summary>
+            <div class="advanced-settings-content">
           <section class="motion-settings" aria-labelledby="motion-settings-title">
             <strong id="motion-settings-title">动捕设置</strong>
             <label>
@@ -83,6 +87,18 @@
               </select>
             </label>
             <small>模型检查提示性能风险时，优先选择“性能优先”。</small>
+            <label class="checkbox-setting">
+              <span>镜像动作</span>
+              <input id="mirror-motion" type="checkbox" checked />
+              <output for="mirror-motion">开启</output>
+            </label>
+            <small>关闭后会交换左右眼、视线并反转头部左右方向；默认值仍需真机确认。</small>
+            <div class="view-presets" aria-label="角色取景预设">
+              <span>取景</span>
+              <button class="soft-button" type="button" data-view="head">头像</button>
+              <button class="soft-button" type="button" data-view="upper">半身</button>
+              <button class="soft-button" type="button" data-view="full">全身</button>
+            </div>
           </section>
 
           <section class="model-doctor">
@@ -104,6 +120,8 @@
               <button id="export-diagnostics" class="soft-button soft-button--wide" type="button">下载诊断报告</button>
             </div>
             <input id="settings-file" type="file" accept="application/json,.json" hidden />
+          </details>
+            </div>
           </details>
 
           <section class="broadcast-controls">
@@ -130,6 +148,11 @@
               <small>模型会保存在这个浏览器中，不会上传</small>
             </div>
             <video id="camera-preview" muted playsinline hidden aria-label="本机摄像头预览"></video>
+            <div id="broadcast-status" class="broadcast-status" role="status" aria-live="polite" hidden>
+              <strong id="broadcast-status-title">直播画面尚未就绪</strong>
+              <span id="broadcast-status-detail">请在交互窗口中选择 VRM 模型。</span>
+              <button id="broadcast-import" class="primary-button" type="button">选择 VRM</button>
+            </div>
           </div>
         </section>
       </section>
@@ -214,7 +237,7 @@
               </article>
             </div>
             <p id="onboarding-finish-state" class="onboarding-status" role="status" aria-live="polite">先让角色正常跟随，再进行校准和 OBS 设置。</p>
-            <p class="onboarding-tip">OBS 无法取得摄像头权限时，使用绿幕背景加“窗口捕获”即可。<a href="https://github.com/bocmiao/MIAO-Motion/blob/main/docs/BEGINNER_GUIDE.md" target="_blank" rel="noreferrer">查看完整零基础教程</a></p>
+            <p class="onboarding-tip">推荐使用绿幕背景加“窗口捕获”。浏览器来源属于实验方案。<a href="/help.html" target="_blank">查看离线零基础教程</a></p>
           </section>
         </div>
 

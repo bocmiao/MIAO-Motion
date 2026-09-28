@@ -17,6 +17,55 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - uses: actions/cache@v4
+        with:
+          path: public/mediapipe
+          key: mediapipe-face-64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff
       - run: npm ci
       - run: npm run build
       - run: npm audit --omit=dev --audit-level=high
+
+  browser-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/cache@v4
+        with:
+          path: public/mediapipe
+          key: mediapipe-face-64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+
+  windows-portable:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/cache@v4
+        with:
+          path: public/mediapipe
+          key: mediapipe-face-64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff
+      - run: npm ci
+      - run: npm run build
+      - name: Package Node-free portable build
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path portable/MIAO-Motion-portable | Out-Null
+          Copy-Item dist, docs, start-portable.bat, portable-server.ps1, README.md, LICENSE, THIRD_PARTY_NOTICES.md -Destination portable/MIAO-Motion-portable -Recurse
+          Compress-Archive -Path portable/MIAO-Motion-portable -DestinationPath MIAO-Motion-portable.zip
+          $hash = (Get-FileHash MIAO-Motion-portable.zip -Algorithm SHA256).Hash.ToLower()
+          "$hash  MIAO-Motion-portable.zip" | Set-Content MIAO-Motion-portable.zip.sha256 -Encoding ascii
+      - uses: actions/upload-artifact@v4
+        with:
+          name: MIAO-Motion-portable-windows
+          path: |
+            MIAO-Motion-portable.zip
+            MIAO-Motion-portable.zip.sha256
