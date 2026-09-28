@@ -14,6 +14,9 @@
 | 非 VRM、空文件、超过 200 MB | Node 单元检查 | 通过 |
 | 摄像头约束与常见错误解释 | Node 单元检查 | 通过 |
 | 追踪 FPS 质量分级 | Node 单元检查 | 通过 |
+| 新手引导步骤门槛与完成状态 | Node 单元检查 | 通过 |
+| 四步 dialog、VRoid 入口和帮助按钮 | DOM 契约检查 | 通过 |
+| Windows 启动器 Node 版本、依赖安装和服务等待 | 启动器契约检查 | 通过 |
 | TypeScript 类型检查 | `tsc --noEmit` | 通过 |
 | 生产构建 | Vite production build | 通过 |
 | MediaPipe 离线资源 | npm 锁定 WASM；Face Landmarker SHA-256 校验后进入构建产物 | 通过 |
@@ -22,7 +25,7 @@
 
 ## 已知非阻断项
 
-- Three.js 与 three-vrm 所在的首屏脚本压缩前约 775 kB，Vite 会给出 500 kB 提示。MediaPipe 已拆为按需加载的独立块；是否继续拆渲染器要等首屏和桌面包数据，不为消除提示提前增加加载状态与分包配置。
+- Three.js 与 three-vrm 所在的首屏脚本压缩前约 777 kB，Vite 会给出 500 kB 提示。MediaPipe 已拆为按需加载的独立块；是否继续拆渲染器要等首屏和桌面包数据，不为消除提示提前增加加载状态与分包配置。
 
 ## 已完成代码、等待真机确认
 
@@ -34,6 +37,7 @@
 - 动作幅度设置在不同人物距离和摄像头上的手感。
 - VRM 0.x/1.0 的真实模型兼容性及模型资源释放。
 - OBS Browser Source 权限、透明背景和绿幕捕获。
+- 首次启动 dialog、键盘焦点、移动端布局和完整点击路径。
 
 ## 必须等待真实 Windows 环境
 

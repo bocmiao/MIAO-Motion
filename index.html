@@ -13,7 +13,10 @@
           <span class="brand-mark" aria-hidden="true">M</span>
           <span>MIAO Motion <small>喵动</small></span>
         </a>
-        <span class="privacy-pill"><span></span> 摄像头与模型仅在本机处理</span>
+        <div class="header-actions">
+          <button id="open-guide" class="guide-button" type="button">新手教程</button>
+          <span class="privacy-pill"><span></span> 摄像头与模型仅在本机处理</span>
+        </div>
       </header>
 
       <section class="intro" aria-labelledby="welcome-title">
@@ -114,6 +117,94 @@
         <span>按 Esc 或双击直播画面可退出</span>
       </footer>
     </main>
+    <dialog id="onboarding-dialog" class="onboarding-dialog" aria-labelledby="onboarding-title">
+      <div class="onboarding-shell">
+        <header class="onboarding-header">
+          <div>
+            <p id="onboarding-progress">第 1/4 步</p>
+            <h2 id="onboarding-title">从零开始使用喵动</h2>
+          </div>
+          <button id="onboarding-close" class="dialog-close" type="button" aria-label="暂时关闭新手教程">×</button>
+        </header>
+        <div id="onboarding-progressbar" class="onboarding-progressbar" role="progressbar" aria-label="教程进度" aria-valuemin="1" aria-valuemax="4" aria-valuenow="1"><span></span></div>
+
+        <div class="onboarding-content">
+          <section data-onboarding-panel="0">
+            <p class="onboarding-kicker">欢迎使用</p>
+            <h3>准备三样东西，就能让角色动起来</h3>
+            <ol class="requirement-list">
+              <li><strong>一个 VRM 角色</strong><span>没有也没关系，下一步教你免费制作。</span></li>
+              <li><strong>一个普通摄像头</strong><span>笔记本内置或 USB 摄像头都可以。</span></li>
+              <li><strong>OBS（直播时才需要）</strong><span>只想预览角色可以暂时不安装。</span></li>
+            </ol>
+            <p class="privacy-note">不需要注册账号。角色文件和摄像头画面只在你的设备上处理。</p>
+          </section>
+
+          <section data-onboarding-panel="1" hidden>
+            <p class="onboarding-kicker">准备角色</p>
+            <h3>导入你的 VRM 文件</h3>
+            <div class="onboarding-action-card">
+              <div><strong>我已经有 VRM</strong><span id="onboarding-model-state">尚未导入角色</span></div>
+              <button id="onboarding-import" class="primary-button" type="button">选择 VRM</button>
+            </div>
+            <details>
+              <summary>我还没有角色，怎么制作？</summary>
+              <ol>
+                <li>下载安装免费的 <a href="https://vroid.com/en/studio" target="_blank" rel="noreferrer">VRoid Studio</a>。</li>
+                <li>选择基础人物，调整发型、脸型和服装。</li>
+                <li>导出时选择 VRM 1.0，并确认模型允许用于直播。</li>
+                <li>回到这里点击“选择 VRM”。</li>
+              </ol>
+            </details>
+            <p class="onboarding-tip">模型检查会告诉你缺少哪些骨骼或表情；警告不一定影响其他动作。</p>
+          </section>
+
+          <section data-onboarding-panel="2" hidden>
+            <p class="onboarding-kicker">连接摄像头</p>
+            <h3>允许权限，然后正对镜头</h3>
+            <div class="onboarding-action-card">
+              <div><strong>摄像头状态</strong><span id="onboarding-camera-state">尚未开启</span></div>
+              <button id="onboarding-camera" class="secondary-button" type="button">开启摄像头</button>
+            </div>
+            <ul class="plain-checks">
+              <li>浏览器询问权限时选择“允许”。</li>
+              <li>如果提示被占用，先关闭会议软件或其他相机程序。</li>
+              <li>有多个摄像头时，可在主界面的“动捕设置”中切换。</li>
+            </ul>
+            <p class="privacy-note">画面不会上传；停止摄像头或关闭页面后会释放设备。</p>
+          </section>
+
+          <section data-onboarding-panel="3" hidden>
+            <p class="onboarding-kicker">校准与开播</p>
+            <h3>最后两步：校准正面，连接 OBS</h3>
+            <div class="finish-grid">
+              <article>
+                <span>1</span>
+                <strong>正面校准</strong>
+                <p>自然看向镜头，等到显示“正在驱动角色”，再点击校准。</p>
+                <button id="onboarding-calibrate" class="soft-button" type="button">立即校准</button>
+              </article>
+              <article>
+                <span>2</span>
+                <strong>加入 OBS</strong>
+                <p>添加“浏览器”来源，尺寸填写 1920 × 1080，然后粘贴地址。</p>
+                <button id="onboarding-copy-obs" class="soft-button" type="button">复制 OBS 地址</button>
+              </article>
+            </div>
+            <p id="onboarding-finish-state" class="onboarding-status" role="status" aria-live="polite">先让角色正常跟随，再进行校准和 OBS 设置。</p>
+            <p class="onboarding-tip">OBS 无法取得摄像头权限时，使用绿幕背景加“窗口捕获”即可。<a href="https://github.com/bocmiao/MIAO-Motion/blob/main/docs/BEGINNER_GUIDE.md" target="_blank" rel="noreferrer">查看完整零基础教程</a></p>
+          </section>
+        </div>
+
+        <footer class="onboarding-footer">
+          <button id="onboarding-later" class="text-button" type="button">稍后再说</button>
+          <div>
+            <button id="onboarding-back" class="soft-button" type="button" disabled>上一步</button>
+            <button id="onboarding-next" class="primary-button" type="button">下一步</button>
+          </div>
+        </footer>
+      </div>
+    </dialog>
     <div id="toast" class="toast" role="status" hidden></div>
     <script type="module" src="/src/main.ts"></script>
   </body>

@@ -3,6 +3,7 @@ const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
 export const DEFAULT_SETTINGS = Object.freeze({
   background: 'studio',
   cameraId: '',
+  onboardingComplete: false,
   sensitivity: 1,
 });
 
@@ -15,6 +16,7 @@ export function parseSettings(raw) {
     return {
       background,
       cameraId: typeof value?.cameraId === 'string' ? value.cameraId : '',
+      onboardingComplete: value?.onboardingComplete === true,
       sensitivity: Number.isFinite(value?.sensitivity)
         ? clamp(value.sensitivity, 0.5, 1.5)
         : DEFAULT_SETTINGS.sensitivity,
@@ -60,4 +62,15 @@ export function trackingQuality(fps, faceVisible) {
 
 export function scaleMotion(motion, sensitivity) {
   return Object.fromEntries(Object.entries(motion).map(([key, value]) => [key, clamp(value * sensitivity, 0, 1)]));
+}
+
+export function onboardingState(step, hasModel, hasCamera) {
+  const current = clamp(Number.isFinite(step) ? Math.trunc(step) : 0, 0, 3);
+  const canContinue = current === 1 ? hasModel : current === 2 ? hasCamera : true;
+  return {
+    current,
+    canContinue,
+    nextLabel: current === 3 ? '完成，开始使用' : '下一步',
+    progress: `${current + 1}/4`,
+  };
 }

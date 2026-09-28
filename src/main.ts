@@ -14,6 +14,7 @@ import { damping, lerpMotion, solveExpressions } from './motion.mjs';
 import {
   cameraConstraints,
   cameraErrorMessage,
+  onboardingState,
   parseSettings,
   scaleMotion,
   trackingQuality,
@@ -69,7 +70,23 @@ const backgroundButton = required<HTMLButtonElement>('#background-toggle');
 const broadcastButton = required<HTMLButtonElement>('#broadcast-toggle');
 const obsButton = required<HTMLButtonElement>('#copy-obs-url');
 const diagnostics = required<HTMLElement>('#diagnostics');
+const openGuideButton = required<HTMLButtonElement>('#open-guide');
+const onboardingDialog = required<HTMLDialogElement>('#onboarding-dialog');
+const onboardingProgress = required<HTMLElement>('#onboarding-progress');
+const onboardingProgressbar = required<HTMLElement>('#onboarding-progressbar');
+const onboardingCloseButton = required<HTMLButtonElement>('#onboarding-close');
+const onboardingLaterButton = required<HTMLButtonElement>('#onboarding-later');
+const onboardingBackButton = required<HTMLButtonElement>('#onboarding-back');
+const onboardingNextButton = required<HTMLButtonElement>('#onboarding-next');
+const onboardingImportButton = required<HTMLButtonElement>('#onboarding-import');
+const onboardingCameraButton = required<HTMLButtonElement>('#onboarding-camera');
+const onboardingCalibrateButton = required<HTMLButtonElement>('#onboarding-calibrate');
+const onboardingObsButton = required<HTMLButtonElement>('#onboarding-copy-obs');
+const onboardingModelState = required<HTMLElement>('#onboarding-model-state');
+const onboardingCameraState = required<HTMLElement>('#onboarding-camera-state');
+const onboardingFinishState = required<HTMLElement>('#onboarding-finish-state');
 const toast = required<HTMLElement>('#toast');
+const onboardingPanels = [...document.querySelectorAll<HTMLElement>('[data-onboarding-panel]')];
 
 const readSettings = () => {
   try { return parseSettings(localStorage.getItem(SETTINGS_KEY)); } catch { return parseSettings(null); }
@@ -128,6 +145,7 @@ let headTarget = new THREE.Quaternion();
 let lastFpsAt = performance.now();
 let detectedFrames = 0;
 let toastTimer = 0;
+let onboardingStep = 0;
 const clock = new THREE.Clock();
 const faceMatrix = new THREE.Matrix4();
 const faceQuaternion = new THREE.Quaternion();
@@ -149,6 +167,30 @@ const showToast = (message: string) => {
 const setTrackingState = (state: 'idle' | 'loading' | 'ready' | 'active' | 'lost' | 'error', message: string) => {
   trackingStatus.textContent = message;
   trackingDot.dataset.state = state;
+};
+
+const updateOnboarding = () => {
+  const state = onboardingState(onboardingStep, Boolean(currentVrm), Boolean(cameraStream));
+  onboardingStep = state.current;
+  onboardingPanels.forEach((panel) => { panel.hidden = Number(panel.dataset.onboardingPanel) !== onboardingStep; });
+  onboardingProgress.textContent = `第 ${state.progress} 步`;
+  onboardingProgressbar.setAttribute('aria-valuenow', String(onboardingStep + 1));
+  const fill = onboardingProgressbar.firstElementChild as HTMLElement | null;
+  if (fill) fill.style.width = `${(onboardingStep + 1) * 25}%`;
+  onboardingBackButton.disabled = onboardingStep === 0;
+  onboardingNextButton.disabled = !state.canContinue;
+  onboardingNextButton.textContent = state.nextLabel;
+  onboardingModelState.textContent = currentVrm ? `${modelName.textContent} · 已导入` : '尚未导入角色';
+  onboardingCameraState.textContent = cameraStream ? '已开启 · 画面仅在本机处理' : cameraStatus.textContent ?? '尚未开启';
+  onboardingCameraButton.textContent = cameraStream ? '关闭摄像头' : '开启摄像头';
+  onboardingCalibrateButton.disabled = !currentVrm || !cameraStream;
+  onboardingObsButton.disabled = !currentVrm;
+};
+
+const openOnboarding = () => {
+  onboardingStep = 0;
+  updateOnboarding();
+  if (!onboardingDialog.open) onboardingDialog.showModal();
 };
 
 const setTrackingQuality = (fps = 0, visible = false) => {
@@ -231,12 +273,12 @@ const inspectModel = (vrm: VRM) => {
   const hasMouth = Boolean(expressions?.getExpression(VRMExpressionPresetName.Aa));
   const hasLook = Boolean(vrm.lookAt || expressions?.getExpression(VRMExpressionPresetName.LookLeft));
   const items = [
-    ['头部骨骼', hasHead],
-    ['眨眼表情', hasBlink],
-    ['嘴型表情', hasMouth],
-    ['视线控制', hasLook],
+    ['头部骨骼', hasHead, hasHead ? '头部转动可用' : '缺少 Head 骨骼，头部不会转动'],
+    ['眨眼表情', hasBlink, hasBlink ? '眨眼可用' : '仍可使用头部和嘴型'],
+    ['嘴型表情', hasMouth, hasMouth ? '张嘴可用' : '仍可使用头部和眨眼'],
+    ['视线控制', hasLook, hasLook ? '眼神可用' : '眼睛不会跟随视线'],
   ] as const;
-  diagnostics.innerHTML = items.map(([label, ok]) => `<li class="${ok ? 'ok' : 'warn'}"><span>${ok ? '✓' : '!'}</span>${label}</li>`).join('');
+  diagnostics.innerHTML = items.map(([label, ok, detail]) => `<li class="${ok ? 'ok' : 'warn'}"><span>${ok ? '✓' : '!'}</span><div><strong>${label}</strong><small>${detail}</small></div></li>`).join('');
   diagnostics.hidden = false;
   return items.filter(([, ok]) => ok).length;
 };
@@ -269,11 +311,12 @@ const loadVrm = async (file: File, persist = true) => {
     hasNeutral = false;
     const score = inspectModel(vrm);
     modelName.textContent = file.name.replace(/\.vrm$/i, '');
-    setModelStatus(`模型可用 · 兼容性 ${score}/4`);
+    setModelStatus(`模型可用 · 兼容性 ${score}/4 · ${(file.size / 1024 / 1024).toFixed(1)} MB`);
     dropHint.hidden = true;
     calibrateButton.disabled = !cameraStream;
     broadcastButton.disabled = false;
     obsButton.disabled = false;
+    updateOnboarding();
     if (persist) void saveModel(file).catch((error) => {
       console.warn('无法保存模型', error);
       showToast('角色已加载，但浏览器空间不足，刷新后需要重新导入');
@@ -340,6 +383,7 @@ const stopCamera = () => {
   lastFpsAt = performance.now();
   setTrackingQuality();
   setTrackingState(faceLandmarker ? 'ready' : 'idle', faceLandmarker ? '引擎已就绪' : '等待开启摄像头');
+  updateOnboarding();
 };
 
 const startCamera = async () => {
@@ -384,6 +428,7 @@ const startCamera = async () => {
   } finally {
     cameraButton.disabled = false;
     cameraSelect.disabled = false;
+    updateOnboarding();
   }
 };
 
@@ -464,11 +509,13 @@ const applyMotion = (delta: number) => {
 
 const calibrate = () => {
   if (!faceVisible) {
+    onboardingFinishState.textContent = '还没有检测到人脸：请正对镜头，等状态显示“正在驱动角色”后再试。';
     showToast('请先正对摄像头，等状态变为“正在驱动角色”');
     return;
   }
   neutralHead.copy(latestHead);
   hasNeutral = true;
+  onboardingFinishState.textContent = '正面校准完成。现在自然转头，确认角色方向是否一致。';
   showToast('校准完成，现在的姿势已设为正面');
 };
 
@@ -497,6 +544,18 @@ const exitBroadcast = () => {
     background = backgroundBeforeBroadcast;
     backgroundBeforeBroadcast = null;
     applyBackground();
+  }
+};
+
+const copyObsUrl = async () => {
+  const url = `${location.origin}${location.pathname}?broadcast=1&background=transparent`;
+  try {
+    await navigator.clipboard.writeText(url);
+    onboardingFinishState.textContent = 'OBS 地址已复制。现在到 OBS 添加“浏览器”来源并粘贴。';
+    showToast('OBS 地址已复制，添加“浏览器”来源后粘贴即可');
+  } catch {
+    onboardingFinishState.textContent = `无法自动复制，请手动复制：${url}`;
+    showToast(url);
   }
 };
 
@@ -533,15 +592,32 @@ broadcastButton.addEventListener('click', () => {
   if (document.body.classList.contains('broadcast-mode')) exitBroadcast();
   else enterBroadcast();
 });
-obsButton.addEventListener('click', async () => {
-  const url = `${location.origin}${location.pathname}?broadcast=1&background=transparent`;
-  try {
-    await navigator.clipboard.writeText(url);
-    showToast('OBS 地址已复制，添加“浏览器”来源后粘贴即可');
-  } catch {
-    showToast(url);
-  }
+obsButton.addEventListener('click', () => { void copyObsUrl(); });
+openGuideButton.addEventListener('click', openOnboarding);
+onboardingCloseButton.addEventListener('click', () => onboardingDialog.close());
+onboardingLaterButton.addEventListener('click', () => onboardingDialog.close());
+onboardingBackButton.addEventListener('click', () => {
+  onboardingStep -= 1;
+  updateOnboarding();
 });
+onboardingNextButton.addEventListener('click', () => {
+  if (onboardingStep === 3) {
+    settings = { ...settings, onboardingComplete: true };
+    saveSettings();
+    onboardingDialog.close();
+    showToast('新手引导已完成，随时可以从右上角重新打开');
+    return;
+  }
+  onboardingStep += 1;
+  updateOnboarding();
+});
+onboardingImportButton.addEventListener('click', () => fileInput.click());
+onboardingCameraButton.addEventListener('click', () => {
+  if (cameraStream) stopCamera();
+  else void startCamera();
+});
+onboardingCalibrateButton.addEventListener('click', calibrate);
+onboardingObsButton.addEventListener('click', () => { void copyObsUrl(); });
 
 for (const eventName of ['dragenter', 'dragover']) {
   stage.addEventListener(eventName, (event) => {
@@ -580,6 +656,7 @@ sensitivityInput.value = String(settings.sensitivity);
 sensitivityValue.value = `${Math.round(settings.sensitivity * 100)}%`;
 setTrackingQuality();
 applyBackground();
+updateOnboarding();
 void refreshCameras();
 navigator.mediaDevices?.addEventListener('devicechange', () => { void refreshCameras(); });
 
@@ -625,6 +702,8 @@ void restoreModel().finally(() => {
   if (startsInBroadcastMode) {
     enterBroadcast();
     void startCamera();
+  } else if (!settings.onboardingComplete) {
+    requestAnimationFrame(openOnboarding);
   }
 });
 
