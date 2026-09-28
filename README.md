@@ -98,6 +98,7 @@ http://127.0.0.1:4173/?broadcast=1&background=transparent
 
 ## 项目计划
 
+- [计划—代码差距审计与执行清单](docs/PLAN_CODE_GAP_AUDIT_2026-09-28.md)：逐项对照全部计划、当前实现、可独立完成工作和真人验证事项。
 - [完整项目计划书](docs/PROJECT_PLAN.md)：产品定位、竞品、开源复用、功能范围、架构、路线图、风险与发布策略。
 - [版本验收清单](docs/ACCEPTANCE.md)：从 v0.2.1 实机验证到 v1.0 发布的逐项门槛。
 - [当前验证状态](docs/VALIDATION_STATUS.md)：已自动验证、代码审查覆盖和必须等待真机的项目。
