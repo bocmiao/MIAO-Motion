@@ -1,1 +1,9 @@
-{"path":null,"license":null,"note":"有明确再分发授权的角色放入 examples/，填写本地相对路径与许可证明后启用。最小测试夹具不是用户角色。"}
+{
+  "path": "./examples/pixiv-vrm1.vrm",
+  "license": "https://vrm.dev/licenses/1.0/",
+  "author": "pixiv Inc.",
+  "name": "pixiv 技术示例角色",
+  "source": "https://raw.githubusercontent.com/pixiv/three-vrm/5a3242b66124386c32b085c6693d9059040e72e5/packages/three-vrm/examples/models/VRM1_Constraint_Twist_Sample.vrm",
+  "sha256": "12c2b97e95e700783a6a550dc0eee2d7880aeedccef9ae67bc4c5a2f0f2631a2",
+  "bytes": 10776032
+}

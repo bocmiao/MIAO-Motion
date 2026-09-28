@@ -5,6 +5,7 @@ experiments/virtual-camera/target/
 playwright-report/
 test-results/
 public/mediapipe/
+public/examples/
 public/licenses/
 .DS_Store
 *.local

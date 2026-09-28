@@ -1198,10 +1198,10 @@ void fetch('./example-avatar.json').then(response => response.json()).then(confi
   if (!config.path || !/^\.\/examples\/[\w.-]+\.vrm$/.test(config.path) || !config.license) return;
   const button = required<HTMLButtonElement>('#load-example');
   button.disabled = false;
-  button.textContent = '先用示例角色试试';
+  button.textContent = '先用 pixiv 示例角色试试';
   button.addEventListener('click', () => {
     void fetch(config.path).then(response => { if (!response.ok) throw new Error('示例角色读取失败'); return response.blob(); })
-      .then(blob => loadVrm(new File([blob], '示例角色.vrm', { type: 'model/vrm', lastModified: 0 })))
+      .then(blob => loadVrm(new File([blob], 'pixiv 技术示例角色.vrm', { type: 'model/vrm', lastModified: 0 })))
       .catch(() => showToast('示例角色不可用，请导入自己的 VRM 或先跳过'));
   });
 }).catch(() => { /* Optional example asset is not configured. */ });
