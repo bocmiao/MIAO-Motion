@@ -2,12 +2,24 @@
 
 更新：2026-09-29，v0.3.0 第三轮整改。当前功能范围见 [整改对照](ROUND3_REMEDIATION.md)。
 
-## 实际执行的自动检查
+## 已发布的最终版本
+
+**[main CI 36458062086](https://github.com/bocmiao/MIAO-Motion/actions/runs/36458062086) 五项全部成功**：build、browser-smoke、windows-portable、windows-desktop、publish-beta。发布源码为 `58b1c0a8ef62e6467b3e9ba1d4279948cd797d9b`，37 项 Node、25 条浏览器流程通过；浏览器 25 条一次通过，没有重试。
+
+[v0.3.0-beta](https://github.com/bocmiao/MIAO-Motion/releases/tag/v0.3.0-beta) 已公开发布（非草稿、预发布），包含安装包、便携 ZIP 及各自校验文件。已从公开 Release 下载两份完整产物，重新计算 SHA-256，与同名校验文件和 GitHub digest 一致：
+
+| 文件 | 字节数 | 实际下载 SHA-256 |
+|---|---:|---|
+| MIAO-Motion-portable.zip | 29,324,617 | `510b023a9de199993073da52c501709bc4456a16b6841f087264a4807c8eb1e5` |
+| MIAO.Motion_0.3.0_x64-setup.exe | 29,622,102 | `95ce8163c6eed895cc98ccf20c09342e26a233f235ca69678171eb993d1e1d87` |
+
+公开 ZIP 内已核对原创 VRM、Pose/Hand 离线模型、教程截图和许可证。以上校验值是本次验收的历史证据；下载页继续动态选择公开附件，不依赖此表手动更新。最后的文档补录不改变发布源代码。
+\n## 实际执行的自动检查
 
 | 范围 | 方法与结果 |
 |---|---|
 | Node / 类型 / 构建 | 37 项 Node 通过，TypeScript 与 Vite 通过；运行时依赖审计通过 |
-| 浏览器 | Windows Chromium / SwiftShader，24 条通过；并发限定 2，防止软件渲染相互抢占 |
+| 浏览器 | Windows Chromium / SwiftShader，25 条通过；并发限定 2，防止软件渲染相互抢占 |
 | 首帧与取景 | 人为延迟 GPU fence 验证准备提示/按钮；pixiv 真实模型离线导入后等待画面像素；VRM 0/1 三个取景、绿幕与透明像素断言 |
 | 原创猫咪 | 生成 VRM、真实导入、兼容性 4/4、换色和表情；真实应用截图随离线教程打包 |
 | 本地输入 | 伪麦克风 track 停止、材质保存/恢复；真实 Pose/Hand 引擎在阻断外网条件下启动并释放 |
@@ -20,7 +32,7 @@
 
 **最终候选 [CI 36456210789](https://github.com/bocmiao/MIAO-Motion/actions/runs/36456210789) 全部通过**，提交 `6450b8d`：
 build、browser-smoke（24 条）、windows-portable、windows-desktop（原生收帧、NSIS 安装/启动/卸载）成功。验证分支按设计跳过发布任务。已下载该次便携产物，SHA-256 与随包文件一致；实际检查包含原创 VRM、Pose/Hand 模型、新教程、截图和第三方许可证。
-之后仅修正旧帮助文字和补录证据，不改变功能实现；main 的发布构建仍独立执行全部检查。
+随后 main 增加保存失败时的换色记录隔离及第 25 条回归测试，并将原创猫咪测试改为等待首帧完成，解决慢速软件渲染下默认 5 秒等待过短的问题。最终 main 发布构建独立执行并通过全部检查。
 
 ### 整改过程中的失败与修复
 
