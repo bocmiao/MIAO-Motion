@@ -18,6 +18,13 @@
 
 ## CI 证据
 
+**最终候选 [CI 36456210789](https://github.com/bocmiao/MIAO-Motion/actions/runs/36456210789) 全部通过**，提交 `6450b8d`：
+build、browser-smoke（24 条）、windows-portable、windows-desktop（原生收帧、NSIS 安装/启动/卸载）成功。验证分支按设计跳过发布任务。已下载该次便携产物，SHA-256 与随包文件一致；实际检查包含原创 VRM、Pose/Hand 模型、新教程、截图和第三方许可证。
+之后仅修正旧帮助文字和补录证据，不改变功能实现；main 的发布构建仍独立执行全部检查。
+
+### 整改过程中的失败与修复
+
+
 [验证运行 36454617538](https://github.com/bocmiao/MIAO-Motion/actions/runs/36454617538)，提交 `50ab368`：
 build、windows-portable、windows-desktop 成功，包含实际 DirectShow 收帧。浏览器 23/24 成功；失败原因是新增测试只模拟旧版 Tauri 标识、没有设置当前 API 的 `isTauri` 标识，导致测试中的原生按钮禁用。已修复模拟并在本地通过全部 24 条，未删除或放宽断言。此前原生脚本编码和 GUI 进程退出码问题也已修复。
 

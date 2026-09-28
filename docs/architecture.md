@@ -1,78 +1,57 @@
 # Architecture
 
-The product scope, milestones and independent validation ledger are defined in [`PROJECT_PLAN.md`](PROJECT_PLAN.md) and [`ACCEPTANCE.md`](ACCEPTANCE.md).
+Current scope and evidence: [third-round remediation](ROUND3_REMEDIATION.md), [validation status](VALIDATION_STATUS.md), [device acceptance](ACCEPTANCE.md).
 
-## v0.2.1 runtime
+## v0.3.0 runtime
 
 ```text
-VRM file → validation/license/performance doctor → IndexedDB model library → three-vrm → Three.js renderer
-camera → MediaPipe Face Landmarker → smoothing/calibration → VRM bones + expressions
-                                                    └────→ preview / broadcast canvas
-named profiles ↔ validated settings; runtime events → persistent sanitized log → diagnostic download
+VRM / bundled avatar → model doctor → IndexedDB → three-vrm → Three.js canvas
+webcam → local Face + optional Pose/Hand engines → bones / expressions
+microphone → local RMS amplitude → mouth override
+specified LAN phone → desktop UDP receiver → iFacialMocap parser → face motion
+canvas → preview / green-screen broadcast / desktop DirectShow sender
+user action → local OBS WebSocket v5 → dedicated scene and window source
 ```
 
-The frontend remains a single Vite application and now has a Tauri 2 shell that embeds the same production assets. There is no server-side processing, account system, database server or WebSocket layer.
+One Vite application is embedded by Tauri or served by the loopback portable server. No cloud frame processing, account service, remote database, recording or telemetry is included.
 
-## Components
+## Components and lifecycle
 
-- `src/main.ts`: camera selection, MediaPipe lifecycle, VRM loading, rendering and UI state.
-- `src/storage.mjs`: IndexedDB v4 models/profiles CRUD, transactional file deduplication and legacy cleanup.
-- `src/app-utils.mjs`: validated settings/profile, camera and model error messages, file limits, tracking quality and model performance classification.
-- `src/capture.mjs`: camera constraints/errors, media-track cleanup and GPU→CPU detector fallback.
-- `src/broadcast.mjs`: browser-source URL and broadcast background transitions.
-- `src/avatar-utils.mjs`: MToon/morph-aware model metrics, mirror mapping, relative-quaternion head calibration, gaze angles and idle blink.
-- `src/motion.mjs`: pure blendshape mapping and frame-rate independent damping.
-- `tests/*.test.mjs`: granular solver, settings, declarations, lifecycle, storage, launcher and DOM contracts using Node's built-in test runner.
-- `tests/e2e`: Playwright smoke checks for onboarding, keyboard import, settings, model fixtures/library, broadcast feedback and camera retry.
-- `tests/fixtures`: deterministic project-owned minimal and corrupt VRM inputs.
-- IndexedDB v4: multiple Blob models with thumbnails/recent time plus named profiles. Upgrade migrates v1 `assets/current-vrm`, retains v2/v3 models and removes the legacy Blob only in the same successful transaction.
-- LocalStorage: camera/background/mirror/sensitivity/smoothing/render/view/output/onboarding settings and up to 80 sanitized diagnostic events.
-- `src-tauri`: transparent Tauri 2 WebView shell with core-only permissions and Windows NSIS configuration.
+- `src/main.ts`: camera lifecycle, model generation guards, face calibration, rendering and UI integration.
+- `src/render-ready.ts`: shader compilation, render submission and GPU fence; no ready status before completion.
+- `src/storage.mjs`: IndexedDB v4 model/profile transactions and migration.
+- `src/avatar-utils.mjs`, `motion.mjs`, `capture.mjs`: model metrics, bone framing, mirrored motion and camera helpers.
+- `src/studio-tools.ts`: per-model material color preferences, local expression keys, microphone lifecycle, adaptive pixel ratio and user-triggered version checks.
+- `src/body-tracking.ts`: optional offline CPU Pose/Hand inference, capped at 10 Hz; missing bones ignored and stale tracked limbs restored. It currently runs on the main thread and is not enabled by default.
+- `src/phone.ts` and `src-tauri/src/phone.rs`: bounded UDP polling from one explicitly chosen private IPv4 sender; packet size capped, no video traffic.
+- `src/obs.ts`: localhost WebSocket v5 authentication, bounded request lifetime, new scene/window source/chroma filter/fit transform. Does not start streaming.
+- `src/native-camera.ts` and `src-tauri/src/native_camera.rs`: one binary frame request in flight, fixed 640×360 BGR, at most 15 FPS, sender release on stop/exit.
+- `native/`: MIT Softcam plus Microsoft DirectShow base classes; independent camera GUID/shared memory names; fixed sibling DLL registration helper with UAC.
+- `public/release-info.js`: semantic version selection from complete GitHub release assets; no hardcoded version/hash.
+- `scripts/prepare-*.mjs`: pinned offline models, WASM, example and license preparation; `generate-miao-avatar.mjs` generates original geometry.
+- `tests/e2e`: real rendered pixels, asynchronous failure/lifecycle cases, local engines, microphone and protocol simulation. Windows CI independently tests actual DirectShow reception and package installation.
 
-## Motion mapping
+## Motion precedence
 
-- MediaPipe facial transformation matrix → `inverse(neutral) × current` relative quaternion → bounded VRM normalized head rotation. Mirror off preserves pitch/yaw/roll; mirror on keeps pitch and negates yaw/roll. VRM 0.x then negates quaternion x/z to match the VRM 1.0 normalized-bone frame. Model switches retain camera neutral calibration.
-- `eyeBlinkLeft/Right` → VRM separate blink expressions, or combined blink fallback.
-- `jawOpen` + `mouthFunnel/Pucker` → VRM `aa` and `oh`.
-- `mouthSmileLeft/Right` → VRM `happy` with reduced weight.
-- eye look blendshapes → bounded degree yaw/pitch through VRM LookAt: positive pitch looks DOWN, negative looks UP, covering bone and expression appliers.
-- one mirror setting consistently swaps left/right eyelids and gaze, and reverses head yaw/roll.
-- no-face state → neutral head, idle blink and subtle chest breathing.
+Fresh phone face input takes precedence over webcam face input; after 500 ms without a phone update, webcam input or idle animation resumes. Body tracking affects limbs. Microphone amplitude overrides mouth channels; selected expressions are applied after ordinary face mapping. Only supported model channels are enabled.
 
-Missing optional expressions are ignored. The model doctor reports the gap instead of preventing the rest of the avatar from working.
-Missing the normalized head bone is a blocking issue. The performance doctor also counts rendered triangles, unique materials/textures and estimates texture/geometry memory; these are guidance thresholds until calibrated on real devices.
+VRM 0 and VRM 1 retain their orientation conversion. Head rotation is calibrated relative to the neutral quaternion and bounded before applying. Mirror changes lateral gaze/eyelids and yaw/roll without reversing pitch. Framing accounts for geometry above the head bone (hair/ears), body bounds and viewport aspect.
 
-## Broadcast modes
+## Storage
 
-- Normal UI: configuration, camera preview and model diagnostics.
-- In-page broadcast: full-window canvas; Escape or double click exits.
-- Green background + window capture: recommended route; the app window must not be minimized or fully occluded.
-- `?broadcast=1&background=transparent`: experimental OBS browser-source page with an interactive missing-model/error overlay. OBS CEF has separate storage and may require `--enable-media-stream`.
+IndexedDB stores Blob models, thumbnails and named profiles. LocalStorage stores validated app settings, per-model material color overrides and bounded sanitized diagnostic events. OBS passwords, microphone samples, phone packets and frames are not persisted. Desktop and browser origins have separate model libraries.
 
-## Security boundaries
+## Security and distribution boundaries
 
-- Runtime server binds to `127.0.0.1`.
-- Raw frames are not stored, logged or uploaded.
-- Imported VRM data is stored only in the browser origin's IndexedDB.
-- Build preparation copies WASM from the lockfile-pinned MediaPipe package and verifies the Face Landmarker model against a pinned SHA-256; runtime loads both from the local origin.
-- A restrictive CSP limits runtime connections and executable resources to the local origin/blob URLs.
-- The Node-free portable package uses a PowerShell `TcpListener` bound to `127.0.0.1`, without http.sys URL ACLs. Bounded requests, per-client exception isolation and path checks protect the local static-file server.
-- Tauri grants Camera only to the bundled origin (or exact local development origin in debug builds); other permission kinds and external navigation are denied. OS privacy policy is never bypassed.
-- No telemetry or crash upload exists.
-- Settings and diagnostics are exported only after a user click. Diagnostic reports exclude frames, model content, local paths and camera device IDs.
+- Portable HTTP binds only to 127.0.0.1; path traversal and malformed methods are rejected.
+- Face/Pose/Hand models are verified at build time and shipped locally; runtime inference is offline.
+- CSP permits the local app, GitHub API for explicit update/download checks and OBS at 127.0.0.1:4455. It does not permit arbitrary remote scripts.
+- Tauri camera/microphone permissions are allowed only for the bundled origin (or exact debug origin). Requests occur through user controls; external navigation is denied.
+- Phone receiver binds UDP 49983 only after the connect action, accepts data only from the specified LAN peer, bounds work per poll and closes on stop.
+- Native registration runs a fixed bundled helper and fixed sibling DLL; UI cannot supply arbitrary command/path arguments. Registration requests Windows UAC, not silent elevation.
+- DirectShow supports 64-bit receivers only in this build; no alpha, no guarantee of UWP/32-bit compatibility. Unregister the component before removing the application.
+- Signing, mirrors and community accounts remain unconfigured per the owner; [integration instructions](DISTRIBUTION_SETUP.md) cover their later setup.
 
-## Not part of the v0.2.1 runtime
+## Remaining extensions
 
-- Body and hand landmarkers.
-- Native virtual camera and Spout2 output.
-- OBS WebSocket automation.
-- Built-in avatar catalogue and character editor.
-- Worker-based inference; the main-thread implementation is retained until real profiling shows dropped rendering frames.
-
-## Accepted next architecture decisions
-
-- Tauri 2 is already packaged in v0.2.1; Electron is not a parallel implementation.
-- Face-only inference stays on the current path until profiling justifies a migration.
-- Pose and Hand inference must be prototyped off the render thread before either becomes a default feature.
-- Desktop packaging reuses the prepared MediaPipe runtime/model assets so core tracking works offline.
-- Spout2 remains an optional feasibility spike, not a v1.0 dependency until measured against transparent-window capture.
+Full wardrobe mesh editing/export, global expression hotkeys, automatic update installation, Spout2/VMC, cross-platform releases and worker-based body inference are outside this beta. Real camera/phone/OBS/meeting software and novice testing remain necessary; mocked IPC and engine startup do not prove physical-device compatibility.
