@@ -1,5 +1,5 @@
 export type Background = 'studio' | 'green' | 'transparent';
-export type RenderQuality = 'performance' | 'balanced' | 'quality';
+export type RenderQuality = 'auto' | 'performance' | 'balanced' | 'quality';
 export type OutputAspect = 'auto' | '16:9' | '9:16' | '1:1';
 export type ViewPreset = 'head' | 'upper' | 'full';
 export type AppSettings = { activeModelId: string; background: Background; cameraId: string; mirror: boolean; onboardingComplete: boolean; outputAspect: OutputAspect; renderQuality: RenderQuality; sensitivity: number; smoothing: number; viewPreset: ViewPreset };

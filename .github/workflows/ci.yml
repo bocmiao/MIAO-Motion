@@ -206,6 +206,14 @@ jobs:
           path: public/mediapipe
           key: mediapipe-face-64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff
       - run: npm ci
+      - name: Install receiver for native camera validation
+        run: choco install ffmpeg --no-progress -y
+      - name: Build native camera
+        shell: pwsh
+        run: ./scripts/build-native-camera.ps1
+      - name: Validate DirectShow frames and remove registration
+        shell: pwsh
+        run: ./scripts/smoke-native-camera.ps1
       - run: npm run desktop:build -- -- --locked
       - name: Install, launch and uninstall NSIS package
         shell: pwsh

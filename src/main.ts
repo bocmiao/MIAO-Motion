@@ -1,4 +1,10 @@
 import './style.css';
+import { setupNativeCamera } from './native-camera';
+import { setupPhone } from './phone';
+import { setupBodyTracking } from './body-tracking';
+import { configureObs } from './obs';
+import { setupStudioTools } from './studio-tools';
+import { prepareAvatarFrame } from './render-ready';
 import * as THREE from 'three';
 import type { Category, FaceLandmarker, FaceLandmarkerResult } from '@mediapipe/tasks-vision';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -216,6 +222,7 @@ let detectedFrames = 0;
 let toastTimer = 0;
 let onboardingStep = 0;
 let modelCanAnimate = false;
+let modelPreparing = false;
 let currentModelMetrics: ModelMetrics | null = null;
 let currentModelMeta: Record<string, unknown> | null = null;
 let cameraStarting = false;
@@ -228,6 +235,18 @@ let storedModels: StoredModel[] = [];
 let storedProfiles: StoredProfile[] = [];
 let thumbnailPendingId = '';
 const clock = new THREE.Clock();
+const bodyTracking = setupBodyTracking(() => currentVrm, () => settings.mirror);
+const studio = setupStudioTools(renderer, () => currentVrm, () => currentModelId, message => showToast(message));
+const nativeCamera = setupNativeCamera(canvas, () => Boolean(currentVrm) && !modelPreparing);
+let lastPhoneFrame = 0;
+const phone = setupPhone(packet => {
+  lastPhoneFrame = performance.now();
+  latestHead.copy(packet.head);
+  if (!hasNeutral) { neutralHead.copy(latestHead); hasNeutral = true; }
+  targetMotion = scaleMotion(mirrorMotion(solveExpressions(packet.categories) as Motion, settings.mirror), settings.sensitivity);
+  lastDetectionAt = lastPhoneFrame; faceVisible = true; detectedFrames++;
+  setTrackingState('active', '正在使用手机面捕');
+});
 const faceMatrix = new THREE.Matrix4();
 const faceQuaternion = new THREE.Quaternion();
 const faceScale = new THREE.Vector3();
@@ -265,6 +284,13 @@ const showToast = (message: string) => {
 const updateBroadcastStatus = () => {
   if (!document.body.classList.contains('broadcast-mode')) {
     broadcastStatus.hidden = true;
+    return;
+  }
+  if (modelPreparing) {
+    broadcastStatusTitle.textContent = '正在准备画面…';
+    broadcastStatusDetail.textContent = '首次显示角色可能需要几秒，请稍候。';
+    broadcastImportButton.hidden = true;
+    broadcastStatus.hidden = false;
     return;
   }
   if (!modelCanAnimate) {
@@ -488,6 +514,8 @@ const loadVrm = async (file: File, persist = true, storedId = '') => {
   }
 
   const generation = ++loadGeneration;
+  modelPreparing = true;
+  stage.dataset.renderReady = 'false';
   importButton.disabled = true;
   modelLibrary.disabled = true;
   loadModelButton.disabled = true;
@@ -514,6 +542,7 @@ const loadVrm = async (file: File, persist = true, storedId = '') => {
       VRMUtils.deepDispose(currentVrm.scene);
     }
 
+    bodyTracking.resetPose();
     currentVrm = vrm;
     thumbnailPendingId = '';
     scene.add(vrm.scene);
@@ -522,6 +551,15 @@ const loadVrm = async (file: File, persist = true, storedId = '') => {
     chestRest.copy((vrm.humanoid.getNormalizedBoneNode(VRMHumanBoneName.Chest) ?? vrm.humanoid.getNormalizedBoneNode(VRMHumanBoneName.Spine))?.quaternion ?? new THREE.Quaternion());
     modelName.textContent = file.name.replace(/\.vrm$/i, '');
     const report = inspectModel(vrm, file.size);
+    modelCanAnimate = false;
+    broadcastButton.disabled = true;
+    obsButton.disabled = true;
+    setModelStatus('正在准备画面… 首次显示角色可能需要几秒');
+    updateOnboarding();
+    await prepareAvatarFrame(renderer, scene, camera, () => generation === loadGeneration);
+    if (generation !== loadGeneration) return false;
+    modelPreparing = false;
+    stage.dataset.renderReady = 'true';
     modelCanAnimate = report.canAnimate;
     setModelStatus(`${report.canAnimate ? '模型可用' : '模型受限'} · 兼容性 ${report.compatible}/4 · ${report.performance.label} · ${(file.size / 1024 / 1024).toFixed(1)} MB`, report.canAnimate ? 'normal' : 'error');
     dropHint.hidden = true;
@@ -547,6 +585,7 @@ const loadVrm = async (file: File, persist = true, storedId = '') => {
       addDiagnosticEvent('model-save-error', error);
       showToast('角色已加载，但浏览器空间不足，刷新后需要重新导入');
     }
+    studio.reloadAppearance();
     return true;
   } catch (error) {
     if (generation !== loadGeneration) return false;
@@ -558,6 +597,8 @@ const loadVrm = async (file: File, persist = true, storedId = '') => {
   } finally {
     URL.revokeObjectURL(objectUrl);
     if (generation === loadGeneration) {
+      modelPreparing = false;
+      updateBroadcastStatus();
       importButton.disabled = false;
       modelLibrary.disabled = false;
       loadModelButton.disabled = !modelLibrary.value;
@@ -610,6 +651,7 @@ const ensureDetector = async () => {
 };
 
 const stopCamera = () => {
+  bodyTracking.stop();
   stopMediaStream(cameraStream);
   cameraStream = null;
   cameraPreview.srcObject = null;
@@ -817,6 +859,9 @@ const removeCurrentModel = async (deleteRecord = true) => {
     VRMUtils.deepDispose(currentVrm.scene);
   }
   currentVrm = null;
+  studio.reloadAppearance();
+  modelPreparing = false;
+  stage.dataset.renderReady = 'false';
   currentModelId = '';
   settings = { ...settings, activeModelId: '' };
   saveSettings();
@@ -904,6 +949,18 @@ const runPreflight = async () => {
   runPreflightButton.textContent = '重新检查';
 };
 
+document.getElementById('setup-obs')!.addEventListener('click', async event => {
+  const button = event.currentTarget as HTMLButtonElement;
+  const input = document.getElementById('obs-password') as HTMLInputElement;
+  const status = document.getElementById('obs-setup-status')!;
+  if (!modelCanAnimate) { status.textContent = '请先加载角色并等待画面准备好'; return; }
+  button.disabled = true;
+  const password = input.value; input.value = '';
+  enterBroadcast();
+  try { const result = await configureObs(password); status.textContent = result; showToast('OBS 场景已创建，请在 OBS 中预览'); }
+  catch (error) { exitBroadcast(); status.textContent = error instanceof Error ? error.message : 'OBS 配置失败'; }
+  finally { button.disabled = false; }
+});
 let backgroundBeforeBroadcast: Background | null = null;
 const enterBroadcast = () => {
   document.body.classList.add('broadcast-mode');
@@ -1291,7 +1348,8 @@ const animate = () => {
   requestAnimationFrame(animate);
   const delta = Math.min(clock.getDelta(), 0.1);
   const now = performance.now();
-  if (faceLandmarker && cameraStream && cameraPreview.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA
+  phone.tick(now);
+  if (now - lastPhoneFrame > 500 && faceLandmarker && cameraStream && cameraPreview.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA
       && cameraPreview.currentTime !== lastVideoTime && now - lastInferenceAt >= 25) {
     lastVideoTime = cameraPreview.currentTime;
     lastInferenceAt = now;
@@ -1328,10 +1386,14 @@ const animate = () => {
     detectedFrames = 0;
     lastFpsAt = now;
   }
+  bodyTracking.tick(cameraPreview, now, Boolean(cameraStream));
   applyMotion(delta);
+  studio.apply();
+  studio.quality(now, settings.renderQuality === 'auto');
   currentVrm?.update(delta);
   controls.update();
   renderer.render(scene, camera);
+  nativeCamera.tick(now);
   if (thumbnailPendingId) {
     const id = thumbnailPendingId;
     thumbnailPendingId = '';

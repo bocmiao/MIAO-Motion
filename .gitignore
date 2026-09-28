@@ -14,3 +14,6 @@ public/licenses/
 .env
 .env.*
 !.env.example
+
+native/build/
+src-tauri/camera/

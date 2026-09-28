@@ -19,7 +19,7 @@ export function parseSettings(raw) {
     const background = ['studio', 'green', 'transparent'].includes(value?.background)
       ? value.background
       : DEFAULT_SETTINGS.background;
-    const renderQuality = ['performance', 'balanced', 'quality'].includes(value?.renderQuality)
+    const renderQuality = ['auto', 'performance', 'balanced', 'quality'].includes(value?.renderQuality)
       ? value.renderQuality
       : DEFAULT_SETTINGS.renderQuality;
     const outputAspect = ['auto', '16:9', '9:16', '1:1'].includes(value?.outputAspect)
