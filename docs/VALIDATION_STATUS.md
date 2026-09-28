@@ -39,7 +39,7 @@
 | Windows CRLF 与 Node-free 启动器 | 启动器契约 + Windows CI | 自动检查已建立 |
 | Node-free 便携服务器首页、帮助、许可证、HEAD、404、405 与目录穿越 | Windows CI 实际启动 PowerShell 服务并发起 HTTP 请求 | 自动检查已建立 |
 | 第三方许可证进入 dist | 构建脚本与产物检查 | 通过 |
-| Tauri 2 最小权限配置与 NSIS 安装包 | Windows CI Rust/Tauri 构建 | 自动检查已建立，等待本次远端 CI |
+| Tauri 2 最小权限配置与 NSIS 安装包 | Windows CI Rust/Tauri 构建与安装包上传 | CI #37 通过 |
 | Tag 发布物、SHA-256 与草稿 Release | `release.yml` | 工作流已建立，尚未创建正式 Tag |
 
 ## 已知非阻断项
@@ -62,6 +62,8 @@
 - 哔哩哔哩直播姬、抖音/快手直播伴侣和腾讯会议的菜单与捕获表现。
 - 首次启动 dialog、键盘焦点、移动端布局、开播前自检和完整点击路径。
 - Tauri 透明 WebView、NSIS 安装/卸载/升级以及 WebView2 缺失时的处理。
+
+说明：CI #37 已在 GitHub 托管的 `windows-latest` 环境完成 NSIS 编译并上传安装包；它证明构建链可用，不等同于真实用户桌面的安装、启动、摄像头和 OBS 体验测试。
 
 ## 必须等待真实 Windows 环境
 
