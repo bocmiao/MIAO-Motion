@@ -38,13 +38,17 @@ export async function configureObs(password: string) {
     const sceneName = `喵动 ${new Date().toISOString().replace(/[:.]/g, '-')}`;
     const inputName = `${sceneName} 窗口`;
     await send('CreateScene', { sceneName });
-    await send('CreateInput', { sceneName, inputName, inputKind: 'window_capture', inputSettings: { cursor: false, client_area: true }, sceneItemEnabled: true });
+    const input = await send('CreateInput', { sceneName, inputName, inputKind: 'window_capture', inputSettings: { cursor: false, client_area: true }, sceneItemEnabled: true });
     const properties = await send('GetInputPropertiesListPropertyItems', { inputName, propertyName: 'window' });
     const windows = Array.isArray(properties.propertyItems) ? properties.propertyItems : [];
     const window = windows.find(item => item.itemEnabled !== false && /MIAO Motion \/ 喵动/i.test(String(item.itemName)));
     if (!window) throw new Error(`已创建“${sceneName}”。未找到喵动窗口，请打开直播画面，再在 OBS 窗口来源中选择它。`);
     await send('SetInputSettings', { inputName, inputSettings: { window: window.itemValue, cursor: false, client_area: true }, overlay: true });
     await send('CreateSourceFilter', { sourceName: inputName, filterName: '喵动绿幕', filterKind: 'chroma_key_filter_v2', filterSettings: { key_color_type: 'green', similarity: 400, smoothness: 80, spill: 100 } });
+    if (typeof input.sceneItemId === 'number') {
+      const video = await send('GetVideoSettings');
+      await send('SetSceneItemTransform', { sceneName, sceneItemId: input.sceneItemId, sceneItemTransform: { boundsType: 'OBS_BOUNDS_SCALE_INNER', boundsWidth: video.baseWidth, boundsHeight: video.baseHeight, positionX: 0, positionY: 0, alignment: 5 } });
+    }
     return `已创建“${sceneName}”并设置窗口捕获与绿幕。请在 OBS 选择这个场景预览；确认后再开播。`;
   } finally { clearTimeout(timer!); socket.close(); }
 }

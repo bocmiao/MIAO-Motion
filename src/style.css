@@ -166,7 +166,12 @@ button:focus-visible, .stage:focus-visible { outline: 3px solid #e5a13e; outline
 
 :is(.advanced-settings, .studio-settings) { padding: 14px; }
 :is(.advanced-settings, .studio-settings) > summary { cursor: pointer; font-weight: 800; }
-:is(.advanced-settings, .studio-settings)-content { margin-top: 12px; display: grid; gap: 10px; }
+.advanced-settings-content { margin-top: 12px; display: grid; gap: 10px; }
+.broadcast-controls > details { grid-column: 1 / -1; padding: 10px; border: 1px solid #e2dfd6; border-radius: 10px; }
+.broadcast-controls > details > summary { cursor: pointer; font-size: 13px; font-weight: 700; }
+.broadcast-controls details p { color: #687080; font-size: 12px; line-height: 1.6; }
+.broadcast-controls details input { max-width: 100%; min-width: 0; padding: 8px; border: 1px solid #d9d7d0; border-radius: 8px; }
+.broadcast-controls details button { margin-top: 8px; }
 :is(.advanced-settings, .studio-settings) .library-settings, :is(.advanced-settings, .studio-settings) .motion-settings, :is(.advanced-settings, .studio-settings) .profile-settings, :is(.advanced-settings, .studio-settings) .model-doctor, :is(.advanced-settings, .studio-settings) .preflight-check, :is(.advanced-settings, .studio-settings) .data-tools { border-radius: 14px; background: #fff; box-shadow: none; }
 
 .model-doctor { padding: 15px 16px; }
@@ -197,6 +202,10 @@ button:focus-visible, .stage:focus-visible { outline: 3px solid #e5a13e; outline
 .broadcast-controls { padding: 10px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
 
 .stage-card {
+  align-self: start;
+  height: max(600px, calc(100vh - 120px));
+  position: sticky;
+  top: 16px;
   min-height: 600px;
   overflow: hidden;
   display: grid;
@@ -287,7 +296,7 @@ footer { min-height: 58px; display: flex; align-items: center; justify-content: 
 .broadcast-mode .brand-bar, .broadcast-mode .intro, .broadcast-mode .control-panel, .broadcast-mode .stage-toolbar, .broadcast-mode footer { display: none; }
 html:has(body.broadcast-mode) { background: transparent; }
 .broadcast-mode .workspace { flex: none; width: 100vw; height: 100vh; padding: 0; display: block; }
-.broadcast-mode .stage-card { width: 100%; height: 100%; min-height: 0; grid-template-rows: 1fr; place-items: center; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.broadcast-mode .stage-card { position: static; width: 100%; height: 100%; min-height: 0; grid-template-rows: 1fr; place-items: center; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
 .broadcast-mode .stage { width: 100vw; height: 100vh; min-height: 0; aspect-ratio: auto; }
 .broadcast-mode .stage[data-aspect="16:9"] { width: min(100vw, calc(100vh * 16 / 9)); height: min(100vh, calc(100vw * 9 / 16)); }
 .broadcast-mode .stage[data-aspect="9:16"] { width: min(100vw, calc(100vh * 9 / 16)); height: min(100vh, calc(100vw * 16 / 9)); }

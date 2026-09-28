@@ -1,4 +1,4 @@
-$ErrorActionPreference = 'Stop'
+﻿$ErrorActionPreference = 'Stop'
 $dll = (Resolve-Path 'native/build/Release/softcam.dll').Path
 $reg = Join-Path $env:SystemRoot 'System32/regsvr32.exe'
 $registration = Start-Process -FilePath $reg -ArgumentList @('/s', "`"$dll`"") -Wait -PassThru -WindowStyle Hidden

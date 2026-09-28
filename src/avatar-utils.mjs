@@ -110,10 +110,18 @@ export function frameAvatar(vrm, camera, target, preset = 'upper') {
   const head = vrm.humanoid.getRawBoneNode('head')?.getWorldPosition(new THREE.Vector3()) ?? bounds.getCenter(new THREE.Vector3());
   const foot = Math.min(...['leftFoot', 'rightFoot'].map(name => vrm.humanoid.getRawBoneNode(name)?.getWorldPosition(new THREE.Vector3()).y ?? bounds.min.y));
   const height = Math.max(head.y - foot, 0.5);
-  const visibleHeight = height * (preset === 'head' ? 0.48 : preset === 'upper' ? 0.95 : 1.5);
-  const targetY = head.y - height * (preset === 'head' ? 0 : preset === 'upper' ? 0.22 : 0.43);
+  if (bounds.isEmpty()) {
+    bounds.min.set(head.x - height * 0.3, foot, head.z);
+    bounds.max.set(head.x + height * 0.3, head.y + height * 0.16, head.z);
+  }
+  const top = Math.max(bounds.max.y, head.y + height * 0.16);
+  const bottom = preset === 'full' ? Math.min(foot, bounds.min.y) : head.y - height * (preset === 'head' ? 0.22 : 0.62);
+  const visibleHeight = (top - bottom) * 1.12;
+  const visibleWidth = preset === 'head' ? height * 0.58 : bounds.max.x - bounds.min.x;
+  const targetY = (top + bottom) / 2;
   // Use both vertical and horizontal FOV so portrait views do not crop the head.
-  const distance = visibleHeight / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2))) * Math.max(1, 0.65 / camera.aspect);
+  const distance = Math.max(visibleHeight, visibleWidth * 1.12 / camera.aspect)
+    / (2 * Math.tan(THREE.MathUtils.degToRad(camera.fov / 2))) + Math.max(0, bounds.max.z - head.z);
   target.set(head.x, targetY, head.z);
   camera.position.set(head.x, targetY, head.z + distance);
   camera.near = Math.max(height / 100, 0.01);

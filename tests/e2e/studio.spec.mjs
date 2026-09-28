@@ -3,6 +3,21 @@ import { fileURLToPath } from 'node:url';
 const fixture = fileURLToPath(new URL('../fixtures/minimal-avatar.vrm', import.meta.url));
 const open = async page => { await page.goto('/'); await page.locator('#onboarding-later').click(); };
 
+test('original mascot loads with face controls and can be recolored', async ({ page }) => {
+  await page.goto('/'); await page.locator('#onboarding-next').click();
+  await page.locator('#load-miao').click();
+  await expect(page.locator('#model-status')).toContainText('兼容性 4/4');
+  await page.locator('#onboarding-later').click();
+  await page.locator('.studio-settings > summary').click();
+  await page.locator('#expression-preset').selectOption('happy');
+  await expect(page.locator('#expression-preset')).toHaveValue('happy');
+  await page.locator('#avatar-material').selectOption({ label: '深青色衣服' });
+  await page.locator('#avatar-color').fill('#2856b0');
+  await page.screenshot({ path: test.info().outputPath('mascot-studio.png'), fullPage: true });
+  await page.locator('#broadcast-toggle').click();
+  await page.screenshot({ path: test.info().outputPath('mascot-broadcast.png') });
+});
+
 test('model readiness waits for GPU completion and exposes preparation feedback', async ({ page }) => {
   await page.addInitScript(() => {
     const original = WebGL2RenderingContext.prototype.clientWaitSync;
@@ -101,4 +116,34 @@ test('OBS setup creates its own window source and green filter through authentic
   expect(requests.map(r => r.requestType)).toEqual(['CreateScene', 'CreateInput', 'GetInputPropertiesListPropertyItems', 'SetInputSettings', 'CreateSourceFilter']);
   expect(requests.at(-1).requestData.filterKind).toBe('chroma_key_filter_v2');
   expect(requests[1].requestData.inputKind).toBe('window_capture');
+});
+
+test('native bridge sends bounded binary frames and releases on stop; phone drives without webcam', async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__nativeFrames = [];
+    window.__nativeStops = 0;
+    window.__TAURI_INTERNALS__ = { invoke: async (command, args) => {
+      if (command === 'native_camera_frame') { window.__nativeFrames.push({ length: args.byteLength, bytes: Array.from(args.slice(0,3)) }); return true; }
+      if (command === 'native_camera_stop') window.__nativeStops++;
+      if (command === 'phone_start') return '192.168.1.1';
+      if (command === 'phone_poll') return 'eyeBlinkLeft-20|jawOpen-40|=head#0,5,0,0,0,0|';
+      return null;
+    } };
+  });
+  await open(page);
+  await page.locator('#model-file').setInputFiles(fixture);
+  await expect(page.locator('#model-status')).toContainText('模型可用');
+  await page.getByText('原生虚拟摄像头（Windows）', { exact: true }).click();
+  await page.locator('#native-camera-toggle').click();
+  await expect(page.locator('#native-camera-status')).toContainText('接收软件已连接');
+  expect(await page.evaluate(() => window.__nativeFrames[0].length)).toBe(640*360*3);
+  await page.locator('#native-camera-toggle').click();
+  expect(await page.evaluate(() => window.__nativeStops)).toBeGreaterThan(0);
+  await page.getByText('手机面捕（iFacialMocap）', { exact: true }).click();
+  await page.locator('#phone-ip').fill('192.168.1.20');
+  await page.locator('#phone-toggle').click();
+  await expect(page.locator('#phone-status')).toContainText('正在接收手机面捕');
+  await expect(page.locator('#camera-status')).toHaveText('尚未开启');
+  await page.locator('#phone-toggle').click();
+  await expect(page.locator('#phone-status')).toContainText('已停止');
 });

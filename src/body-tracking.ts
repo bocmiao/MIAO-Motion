@@ -8,10 +8,12 @@ export function setupBodyTracking(avatar: () => VRM | null, mirror: () => boolea
   let pose: PoseLandmarker | null = null, hands: HandLandmarker | null = null;
   let starting = false, generation = 0, last = 0, lastResult = 0;
   const rests = new Map<string, Quaternion>();
+  const seen = new Map<string, number>();
   const resetPose = () => {
     const vrm = avatar();
     for (const [name, rest] of rests) vrm?.humanoid.getNormalizedBoneNode(name as VRMHumanBoneName)?.quaternion.copy(rest);
     rests.clear();
+    seen.clear();
   };
   const stop = () => {
     generation++; starting = false; pose?.close(); hands?.close(); pose = hands = null;
@@ -44,6 +46,7 @@ export function setupBodyTracking(avatar: () => VRM | null, mirror: () => boolea
     const child = vrm.humanoid.getNormalizedBoneNode(childName as VRMHumanBoneName);
     if (!bone || !child || !bone.parent) return;
     if (!rests.has(name)) rests.set(name, bone.quaternion.clone());
+    seen.set(name, last);
     // Normalized humanoid axes differ between VRM 0 and VRM 1.
     const xSign = mirror() ? 1 : -1;
     const target = new Vector3((b.x - a.x) * xSign, a.y - b.y, a.z - b.z);
@@ -86,6 +89,12 @@ export function setupBodyTracking(avatar: () => VRM | null, mirror: () => boolea
           aim(`${side}ThumbMetacarpal`, `${side}ThumbProximal`, points[1], points[2]);
           aim(`${side}ThumbProximal`, `${side}ThumbDistal`, points[2], points[3]);
         });
+        // Return missing or low-confidence limbs/fingers to rest, independently.
+        for (const [name, rest] of rests) {
+          if (now - (seen.get(name) ?? 0) <= 500) continue;
+          avatar()?.humanoid.getNormalizedBoneNode(name as VRMHumanBoneName)?.quaternion.copy(rest);
+          rests.delete(name); seen.delete(name);
+        }
         status.textContent = `身体${points ? '已识别' : '未入镜'} · 手部 ${result?.landmarks.length ?? 0}/2 · 低频追踪`;
       } catch { stop(); toggle.checked = false; status.textContent = '身体追踪失败，已停止；可重新勾选重试'; }
     },
