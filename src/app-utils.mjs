@@ -4,6 +4,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   background: 'studio',
   cameraId: '',
   onboardingComplete: false,
+  renderQuality: 'balanced',
   sensitivity: 1,
 });
 
@@ -13,10 +14,14 @@ export function parseSettings(raw) {
     const background = ['studio', 'green', 'transparent'].includes(value?.background)
       ? value.background
       : DEFAULT_SETTINGS.background;
+    const renderQuality = ['performance', 'balanced', 'quality'].includes(value?.renderQuality)
+      ? value.renderQuality
+      : DEFAULT_SETTINGS.renderQuality;
     return {
       background,
       cameraId: typeof value?.cameraId === 'string' ? value.cameraId : '',
       onboardingComplete: value?.onboardingComplete === true,
+      renderQuality,
       sensitivity: Number.isFinite(value?.sensitivity)
         ? clamp(value.sensitivity, 0.5, 1.5)
         : DEFAULT_SETTINGS.sensitivity,
@@ -73,4 +78,76 @@ export function onboardingState(step, hasModel, hasCamera) {
     nextLabel: current === 3 ? '完成，开始使用' : '下一步',
     progress: `${current + 1}/4`,
   };
+}
+
+export function renderPixelRatio(quality, devicePixelRatio = 1) {
+  const cap = quality === 'performance' ? 1 : quality === 'quality' ? 2 : 1.5;
+  return Math.min(Math.max(devicePixelRatio, 1), cap);
+}
+
+export function estimateModelPerformance(metrics) {
+  const textureMegabytes = metrics.textureBytes / 1024 / 1024;
+  const heavy = metrics.triangles > 200_000
+    || metrics.materials > 60
+    || metrics.maxTextureSize > 4096
+    || textureMegabytes > 512
+    || metrics.fileBytes > 150 * 1024 * 1024;
+  const warning = metrics.triangles > 100_000
+    || metrics.materials > 30
+    || metrics.maxTextureSize > 2048
+    || textureMegabytes > 256
+    || metrics.fileBytes > 80 * 1024 * 1024;
+  return {
+    level: heavy ? 'heavy' : warning ? 'warning' : 'good',
+    label: heavy ? '性能风险较高' : warning ? '建议使用性能优先' : '性能规模正常',
+    textureMegabytes: Math.round(textureMegabytes),
+  };
+}
+
+export function createSettingsProfile(settings) {
+  return {
+    format: 'miao-motion-settings',
+    version: 1,
+    settings: {
+      background: settings.background,
+      renderQuality: settings.renderQuality,
+      sensitivity: settings.sensitivity,
+    },
+  };
+}
+
+export function parseSettingsProfile(raw) {
+  try {
+    const profile = JSON.parse(raw);
+    if (profile?.format !== 'miao-motion-settings' || profile?.version !== 1 || !profile.settings) return null;
+    const parsed = parseSettings(JSON.stringify(profile.settings));
+    return {
+      background: parsed.background,
+      renderQuality: parsed.renderQuality,
+      sensitivity: parsed.sensitivity,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function modelLoadErrorMessage(error) {
+  const message = error instanceof Error ? error.message.toLowerCase() : String(error ?? '').toLowerCase();
+  if (/memory|allocation|context lost|too large/.test(message)) {
+    return '模型加载失败：内存或显存不足，请关闭其他程序、选择“性能优先”或压缩模型';
+  }
+  if (/json|unexpected|buffer|range|parse|invalid/.test(message)) {
+    return '模型加载失败：文件结构可能损坏，请从建模软件重新导出 VRM';
+  }
+  if (/vrm/.test(message)) return '模型加载失败：文件中没有有效的 VRM 数据';
+  return '模型解析失败：请确认文件完整且为 VRM 0.x/1.0';
+}
+
+export function sanitizeDiagnosticMessage(value) {
+  const raw = value instanceof Error ? `${value.name}: ${value.message}` : String(value);
+  return raw
+    .replace(/blob:[^\s)]+/gi, 'blob:[redacted]')
+    .replace(/file:\/\/[^\n)]*/gi, 'file:[redacted]')
+    .replace(/[a-z]:\\[^\n)]*/gi, '[local-path-redacted]')
+    .replace(/\/(?:Users|home)\/[^\n)]*/g, '[local-path-redacted]');
 }

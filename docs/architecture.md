@@ -5,9 +5,10 @@ The product scope, milestones and release gates are defined in [`PROJECT_PLAN.md
 ## v0.2.1 runtime
 
 ```text
-VRM file → validation → IndexedDB → three-vrm → Three.js renderer
+VRM file → validation/performance doctor → IndexedDB → three-vrm → Three.js renderer
 camera → MediaPipe Face Landmarker → smoothing/calibration → VRM bones + expressions
                                                     └────→ preview / broadcast canvas
+settings JSON ↔ validated profile; runtime events → local diagnostic download
 ```
 
 The first runnable release stays a single Vite application. There is no server-side processing, account system, database server, WebSocket layer or desktop shell.
@@ -15,10 +16,11 @@ The first runnable release stays a single Vite application. There is no server-s
 ## Components
 
 - `src/main.ts`: camera selection, MediaPipe lifecycle, VRM loading, rendering, persistence and UI state.
-- `src/app-utils.mjs`: validated settings, camera constraints/error messages, file limits and tracking-quality classification.
+- `src/app-utils.mjs`: validated settings/profile, camera and model error messages, file limits, tracking quality and model performance classification.
 - `src/motion.mjs`: pure blendshape mapping and frame-rate independent damping.
 - `tests/*.test.mjs`: dependency-free solver, settings, validation and DOM-contract checks using Node's built-in test runner.
 - IndexedDB `miao-motion/assets/current-vrm`: last successfully imported avatar.
+- LocalStorage `miao-motion-settings-v1`: camera choice, background, sensitivity, render quality and onboarding completion.
 
 ## Motion mapping
 
@@ -29,6 +31,7 @@ The first runnable release stays a single Vite application. There is no server-s
 - eye look blendshapes → VRM look expressions when supplied by the model.
 
 Missing optional expressions are ignored. The model doctor reports the gap instead of preventing the rest of the avatar from working.
+Missing the normalized head bone is a blocking issue. The performance doctor also counts rendered triangles, unique materials/textures and estimates texture/geometry memory; these are guidance thresholds until calibrated on real devices.
 
 ## Broadcast modes
 
@@ -44,6 +47,7 @@ Missing optional expressions are ignored. The model doctor reports the gap inste
 - Imported VRM data is stored only in the browser origin's IndexedDB.
 - Build preparation copies WASM from the lockfile-pinned MediaPipe package and verifies the Face Landmarker model against a pinned SHA-256; runtime loads both from the local origin.
 - No telemetry or crash upload exists.
+- Settings and diagnostics are exported only after a user click. Diagnostic reports exclude frames, model content, local paths and camera device IDs.
 
 ## Not part of the v0.2.1 runtime
 

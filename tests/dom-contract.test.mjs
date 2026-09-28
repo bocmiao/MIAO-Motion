@@ -16,5 +16,10 @@ assert.match(html, /<dialog id="onboarding-dialog"/);
 assert.equal([...html.matchAll(/data-onboarding-panel="[0-3]"/g)].length, 4);
 assert.match(html, /https:\/\/vroid\.com\/en\/studio/);
 assert.match(html, /id="open-guide"/);
+assert.match(html, /id="render-quality"/);
+assert.match(html, /id="export-settings"/);
+assert.match(html, /id="import-settings"/);
+assert.match(html, /id="remove-model"/);
+assert.match(html, /id="export-diagnostics"/);
 
 console.log('DOM contract checks passed');

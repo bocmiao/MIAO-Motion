@@ -97,7 +97,7 @@ button:disabled { cursor: not-allowed; opacity: 0.42; }
 
 .control-panel { display: grid; align-content: start; gap: 10px; }
 
-.step-card, .tracking-card, .motion-settings, .model-doctor, .broadcast-controls {
+.step-card, .tracking-card, .motion-settings, .model-doctor, .data-tools, .broadcast-controls {
   border: 1px solid rgba(38, 43, 54, 0.09);
   border-radius: 19px;
   background: rgba(255, 255, 255, 0.74);
@@ -166,6 +166,12 @@ button:focus-visible, .stage:focus-visible { outline: 3px solid #e5a13e; outline
 .model-doctor li small { color: #858b96; font-size: 10px; line-height: 1.3; }
 .model-doctor li.ok span { background: #42a86e; }
 .model-doctor li.warn span { background: #d79131; }
+.model-doctor li.error span { background: #c64c47; }
+
+.data-tools { padding: 14px 16px; }
+.data-tools summary { cursor: pointer; font-weight: 800; }
+.data-tools p { margin: 9px 0; color: #858b96; font-size: 11px; line-height: 1.45; }
+.data-tools > div { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 
 .broadcast-controls { padding: 10px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
 
@@ -250,7 +256,7 @@ footer { min-height: 58px; display: flex; align-items: center; justify-content: 
 @media (max-width: 900px) {
   .workspace { grid-template-columns: 1fr; }
   .control-panel { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .tracking-card, .motion-settings, .model-doctor, .broadcast-controls { min-height: 120px; }
+  .tracking-card, .motion-settings, .model-doctor, .data-tools, .broadcast-controls { min-height: 120px; }
   .stage-card { min-height: 550px; }
 }
 
@@ -261,7 +267,7 @@ footer { min-height: 58px; display: flex; align-items: center; justify-content: 
   .intro { padding-top: 24px; }
   .control-panel { grid-template-columns: 1fr; }
   .step-card { grid-template-columns: 34px minmax(0, 1fr) auto; }
-  .tracking-card, .motion-settings, .model-doctor, .broadcast-controls { min-height: auto; }
+  .tracking-card, .motion-settings, .model-doctor, .data-tools, .broadcast-controls { min-height: auto; }
   .stage-card { min-height: 480px; border-radius: 21px; }
   .stage { min-height: 420px; }
   footer { align-items: flex-start; flex-direction: column; justify-content: center; }
