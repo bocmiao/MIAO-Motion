@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="MIAO Motion：免费开源、本地优先的动漫角色动捕工具" />
+    <title>MIAO Motion / 喵动</title>
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="brand-bar">
+        <a class="brand" href="/" aria-label="MIAO Motion 首页">
+          <span class="brand-mark" aria-hidden="true">M</span>
+          <span>MIAO Motion <small>喵动</small></span>
+        </a>
+        <span class="privacy-pill">摄像头画面仅在本机处理</span>
+      </header>
+
+      <section class="intro" aria-labelledby="welcome-title">
+        <p class="eyebrow">第一次使用也没关系</p>
+        <h1 id="welcome-title">今天想用哪个角色出现？</h1>
+        <p>先看到效果，再决定是否捏角色或导入自己的模型。</p>
+      </section>
+
+      <section class="workspace">
+        <div class="choices" aria-label="开始方式">
+          <button class="choice-card" type="button" disabled>
+            <span class="choice-icon" aria-hidden="true">✦</span>
+            <strong>马上体验</strong>
+            <span>选择内置角色，90 秒看到效果</span>
+            <em>内置角色准备中</em>
+          </button>
+
+          <button class="choice-card" type="button" disabled>
+            <span class="choice-icon" aria-hidden="true">◌</span>
+            <strong>捏一个角色</strong>
+            <span>选择发型、服装和颜色</span>
+            <em>角色工坊准备中</em>
+          </button>
+
+          <button class="choice-card choice-card--active" id="import-model" type="button">
+            <span class="choice-icon" aria-hidden="true">↥</span>
+            <strong>导入已有模型</strong>
+            <span>支持 VRM 0.x / 1.0</span>
+            <em>现在可用</em>
+          </button>
+          <input id="model-file" type="file" accept=".vrm,model/vrm" hidden />
+
+          <div class="camera-card">
+            <div>
+              <strong>摄像头</strong>
+              <span id="camera-status">尚未开启</span>
+            </div>
+            <button id="camera-toggle" class="secondary-button" type="button">开启摄像头</button>
+          </div>
+        </div>
+
+        <section class="stage-card" aria-label="角色预览">
+          <div class="stage-toolbar">
+            <div>
+              <strong id="model-name">角色预览</strong>
+              <span id="model-status" role="status" aria-live="polite">拖入 VRM 文件开始</span>
+            </div>
+            <span class="local-badge">本地</span>
+          </div>
+
+          <div id="stage" class="stage" tabindex="0" aria-label="将 VRM 文件拖到这里">
+            <canvas id="avatar-canvas"></canvas>
+            <div id="drop-hint" class="drop-hint">
+              <span aria-hidden="true">↥</span>
+              <strong>把 VRM 模型拖到这里</strong>
+              <small>文件不会上传</small>
+            </div>
+            <video id="camera-preview" muted playsinline hidden aria-label="本机摄像头预览"></video>
+          </div>
+        </section>
+      </section>
+
+      <footer>
+        <span>技术底座 v0.1.0</span>
+        <span>下一步：MediaPipe 实时动作驱动</span>
+      </footer>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
+
