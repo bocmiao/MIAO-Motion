@@ -3,10 +3,13 @@ $ErrorActionPreference = 'Stop'
 if ($env:GITHUB_ACTIONS -ne 'true') { throw '仅允许隔离 Windows CI 操作系统保存窗口' }
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
+Add-Type -AssemblyName System.Windows.Forms
 Add-Type -TypeDefinition @'
 using System;
 using System.Runtime.InteropServices;
 public static class NativeSaveDialog {
+  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr window);
+  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
   [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern IntPtr SendMessage(IntPtr window, uint message, IntPtr wparam, string text);
   [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr window, uint message, IntPtr wparam, IntPtr lparam);
 }
@@ -39,9 +42,17 @@ if (-not $edit) {
   foreach ($control in $controls) { Write-Host "Dialog control: $($control.Current.Name) / $($control.Current.AutomationId) / $($control.Current.ControlType.ProgrammaticName)" }
   throw '另存为窗口缺少文件名输入框'
 }
-# Some hosted Windows images expose these Win32 controls as Pane without UIA
-# Value/Invoke providers. Use their observed HWNDs and standard control messages.
-if ([NativeSaveDialog]::SendMessage([IntPtr]$edit.Current.NativeWindowHandle, 0x000C, [IntPtr]::Zero, $Destination) -eq [IntPtr]::Zero) { throw '无法填写导出文件名' }
+# Native file dialogs keep an internal filename model. Real keyboard input updates
+# it reliably; WM_SETTEXT alone can change the display without the selected path.
+$dialogHandle = [IntPtr]$dialog.Current.NativeWindowHandle
+[void][NativeSaveDialog]::SetForegroundWindow($dialogHandle)
+if ([NativeSaveDialog]::GetForegroundWindow() -ne $dialogHandle) { throw '另存为窗口未获得焦点，停止输入' }
+[Windows.Forms.Clipboard]::SetText($Destination)
+[Windows.Forms.SendKeys]::SendWait('%n')
+[Windows.Forms.SendKeys]::SendWait('^a')
+[Windows.Forms.SendKeys]::SendWait('^v')
+Start-Sleep -Milliseconds 300
+Write-Host "Native Save As destination: $Destination"
 $buttonCondition = [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::AutomationIdProperty, '1')
 $deadline = [DateTime]::UtcNow.AddSeconds(10)
 do {
