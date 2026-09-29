@@ -28,13 +28,23 @@
 
 ## Windows 小白启动方法
 
-### 推荐：免 Node.js 便携包
+不知道下载哪个？**选安装版**。发布页 Assets 里只需要下载一个文件；`.sha256` 是校验文件，`Source code` 是源代码、不是程序，都不用下载。
 
-1. 在 [测试版发布页](https://github.com/bocmiao/MIAO-Motion/releases) 下载最新 beta 的 `MIAO-Motion-portable.zip` 与同名 `.sha256`，右键“全部解压缩”。
+### 推荐：安装版
+
+1. 在 [测试版发布页](https://github.com/bocmiao/MIAO-Motion/releases) 的最新 beta 下，下载 `MIAO.Motion_<版本>_x64-setup.exe`。
+2. 双击按提示安装，之后从开始菜单打开“MIAO Motion”。
+3. 点“用喵小动”或导入自己的 VRM，开启摄像头，再做正面校准。
+
+安装版功能最全，包括原生虚拟摄像头和手机面捕（实验），不需要 Node.js。
+
+### 电脑不能装软件时：免安装便携包
+
+1. 在同一发布页下载 `MIAO-Motion-portable.zip`，右键“全部解压缩”。
 2. 双击 `双击启动喵动.bat`。不要直接在压缩包预览窗口中运行。
 3. 浏览器打开后，选择 VRM、开启摄像头，再做正面校准。
 
-便携包含预构建网页、离线资源、许可证和本机服务器，无需 Node.js；同页提供 Windows 安装包（`MIAO.Motion_<版本>_x64-setup.exe`），需要原生虚拟摄像头或手机面捕时选安装版。beta 不代表真实相机/直播软件已验证。国内镜像需所有者配置，当前未启用。详见 [中文下载与校验说明](public/download.html)。
+便携包含预构建网页、离线资源、许可证和本机服务器，无需 Node.js，但没有原生虚拟摄像头和手机面捕。beta 不代表真实相机/直播软件已验证。国内镜像需所有者配置，当前未启用。详见 [中文下载与校验说明](public/download.html)。
 
 ### 源码版
 

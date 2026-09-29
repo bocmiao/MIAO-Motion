@@ -49,7 +49,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $files = @(Get-ChildItem release -File | ForEach-Object FullName)
+          [Console]::OutputEncoding = [Text.Encoding]::UTF8
+          $files = @(node scripts/release-asset-labels.mjs release)
+          if ($LASTEXITCODE -ne 0 -or $files.Count -eq 0) { throw '附件列表生成失败' }
           $mode = if ('${{ github.ref_name }}' -match '-beta') { '--prerelease' } else { '--draft' }
           gh release create '${{ github.ref_name }}' @files $mode --verify-tag --notes-file docs/BETA_RELEASE_NOTES.md --title 'MIAO Motion ${{ github.ref_name }}'
       - name: Optional domestic mirror upload (owner-configured endpoint)

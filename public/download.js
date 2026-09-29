@@ -8,7 +8,7 @@ try {
     const row = document.createElement('li');
     const link = document.createElement('a');
     link.href = file.browser_download_url;
-    link.textContent = `${file.name.endsWith('.exe') ? '下载安装版' : '下载便携版'}（${(file.size / 1024 / 1024).toFixed(1)} MB）`;
+    link.textContent = `${file.name.endsWith('.exe') ? '下载安装版（推荐）' : '下载便携版（电脑不能装软件时用）'}（${(file.size / 1024 / 1024).toFixed(1)} MB）`;
     const hash = document.createElement('a');
     hash.href = file.checksum.browser_download_url;
     hash.textContent = '对应版本 SHA-256 校验文件';

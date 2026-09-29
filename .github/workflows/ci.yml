@@ -186,7 +186,9 @@ jobs:
           fi
           node scripts/release-checksums.mjs beta-assets
           (cd beta-assets && sha256sum -c ./*.sha256)
-          gh release create "$tag" beta-assets/* --target "$GITHUB_SHA" --prerelease --title "喵动 $tag 测试版" --notes-file docs/BETA_RELEASE_NOTES.md
+          mapfile -t assets < <(node scripts/release-asset-labels.mjs beta-assets)
+          [ "${#assets[@]}" -gt 0 ] || { echo "附件列表生成失败"; exit 1; }
+          gh release create "$tag" "${assets[@]}" --target "$GITHUB_SHA" --prerelease --title "喵动 $tag 测试版" --notes-file docs/BETA_RELEASE_NOTES.md
 
   windows-desktop:
     runs-on: windows-latest

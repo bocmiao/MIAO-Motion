@@ -148,6 +148,7 @@ test('download page follows published assets and falls back when offline', async
   await page.goto('/download.html');
   await expect(page.locator('#release-status')).toContainText(tag);
   await expect(page.locator('#release-files a')).toHaveCount(4);
+  await expect(page.locator('#release-files li').first()).toContainText('下载安装版（推荐）');
   await page.route('https://api.github.com/**', route => route.abort());
   await page.reload();
   await expect(page.locator('#release-status')).toContainText('无法联网');
