@@ -24,46 +24,27 @@ public static class NativeFileDrop {
     var point = new Point { X = x, Y = y };
     if (!ClientToScreen(app.MainWindowHandle, ref point)) throw new Exception("ClientToScreen failed");
     SetForegroundWindow(app.MainWindowHandle);
-    var form = new Form { Text = "CI file drag source", StartPosition = FormStartPosition.Manual, Location = new System.Drawing.Point(0,0), Size = new Size(140,100), TopMost = true };
-    DragDropEffects effect = DragDropEffects.None;
-    bool pressed = false;
-    var deadline = new System.Windows.Forms.Timer { Interval = 20000 };
-    deadline.Tick += (sender, args) => { deadline.Stop(); mouse_event(4,0,0,0,UIntPtr.Zero); form.Close(); };
-    form.MouseDown += (sender, args) => {
-      pressed = true;
-      Console.WriteLine("Native drag source received mouse down");
+    var start = new System.Drawing.Point(Math.Max(0, point.X - 250), point.Y);
+    Console.WriteLine("Native OLE drag coordinates: " + start + " -> " + point.X + "," + point.Y);
+    using (var source = new Control()) {
+      // DoDragDrop owns the native OLE message loop; no visible source window is needed.
+      // The actual target still receives CF_HDROP through Windows, never a DOM event.
       var data = new DataObject(DataFormats.FileDrop, new string[] { path });
-      effect = form.DoDragDrop(data, DragDropEffects.Copy);
-      Console.WriteLine("Native drag result: " + effect);
-      form.Close();
-    };
-    form.Shown += (sender, args) => {
-      var sourceWindow = form.Handle;
-      var start = form.PointToScreen(new System.Drawing.Point(form.ClientSize.Width / 2, form.ClientSize.Height / 2));
-      Console.WriteLine("Native drag coordinates: " + start + " -> " + point.X + "," + point.Y);
-      deadline.Start();
-      new Thread(() => {
-        // Shown fires before WinForms finishes applying the process startup hint.
-        // Override that hidden hint only after its initial ShowWindow has returned.
+      SetCursorPos(start.X, start.Y);
+      mouse_event(2,0,0,0,UIntPtr.Zero);
+      var mover = new Thread(() => {
         Thread.Sleep(500);
-        ShowWindow(sourceWindow, 5);
-        SetForegroundWindow(sourceWindow);
-        Thread.Sleep(500);
-        var bounds = SystemInformation.VirtualScreen;
-        using (var bitmap = new Bitmap(bounds.Width, bounds.Height)) {
-          using (var graphics = Graphics.FromImage(bitmap)) graphics.CopyFromScreen(bounds.Location, System.Drawing.Point.Empty, bounds.Size);
-          bitmap.Save("test-results/desktop-camera-drag-desktop.png");
-        }
-        SetCursorPos(start.X,start.Y); mouse_event(2,0,0,0,UIntPtr.Zero);
-        Thread.Sleep(300);
         for(int i=1;i<=20;i++) { SetCursorPos(start.X+(point.X-start.X)*i/20,start.Y+(point.Y-start.Y)*i/20); Thread.Sleep(40); }
-        Thread.Sleep(400); mouse_event(4,0,0,0,UIntPtr.Zero);
-      }) { IsBackground = true }.Start();
-    };
-    Application.Run(form);
-    deadline.Dispose();
-    if (!pressed) throw new Exception("Native drag source did not receive mouse down");
-    if (effect == DragDropEffects.None) throw new Exception("Native file drop was rejected");
+        Thread.Sleep(1000);
+        mouse_event(4,0,0,0,UIntPtr.Zero);
+      }) { IsBackground = true };
+      mover.Start();
+      DragDropEffects effect;
+      try { effect = source.DoDragDrop(data, DragDropEffects.Copy); }
+      finally { mover.Join(5000); mouse_event(4,0,0,0,UIntPtr.Zero); }
+      Console.WriteLine("Native OLE drag result: " + effect);
+      if (effect == DragDropEffects.None) throw new Exception("Native file drop was rejected");
+    }
   }
 }
 '@
