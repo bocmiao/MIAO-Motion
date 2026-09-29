@@ -59,8 +59,20 @@ int wmain(int argc, wchar_t** argv) {
       if (!ClientToScreen(window, &target)) hr = E_FAIL;
       else {
         ShowWindow(window, SW_RESTORE);
-        SetForegroundWindow(window);
-        const POINT start{std::max(0L, target.x - 250), target.y};
+        const auto dragWindow = CreateWindowExW(WS_EX_TOPMOST | WS_EX_TOOLWINDOW, L"STATIC", L"CI file drag source",
+          WS_POPUP, 0, 0, 160, 120, nullptr, nullptr, GetModuleHandleW(nullptr), nullptr);
+        if (!dragWindow) return 4;
+        // SetWindowPos explicitly shows the source even when the console helper
+        // inherited a hidden startup hint. Verify the real window under the mouse.
+        SetWindowPos(dragWindow, HWND_TOPMOST, 0, 0, 160, 120, SWP_SHOWWINDOW);
+        SetForegroundWindow(dragWindow);
+        UpdateWindow(dragWindow);
+        const POINT start{80, 60};
+        if (WindowFromPoint(start) != dragWindow) {
+          std::cerr << "Native drag source is not visible at the start point" << std::endl;
+          DestroyWindow(dragWindow);
+          return 5;
+        }
         ComPtr<FileDropSource> source;
         source.Attach(new FileDropSource());
         SetCursorPos(start.x, start.y);
@@ -83,6 +95,7 @@ int wmain(int argc, wchar_t** argv) {
         hr = DoDragDrop(data.Get(), source.Get(), DROPEFFECT_COPY, &effect);
         mover.join();
         mouse_event(MOUSEEVENTF_LEFTUP, 0, 0, 0, 0);
+        DestroyWindow(dragWindow);
         std::cout << "OLE result: " << std::hex << hr << " / effect " << effect << std::endl;
         if (SUCCEEDED(hr) && effect == DROPEFFECT_COPY) result = 0;
       }
