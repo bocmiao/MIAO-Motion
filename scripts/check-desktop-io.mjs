@@ -25,13 +25,15 @@ export async function checkDesktopIO(page) {
       await expect(page.locator('#help-frame')).toHaveAttribute('src', href);
       await expect.poll(() => page.locator('#help-frame').evaluate((frame, href) => frame.contentDocument?.URL === href && (frame.contentDocument.body?.textContent?.length ?? 0) > 20, href)).toBe(true);
       await page.locator('#help-close').click();
-    } else await expect(page.locator('#toast')).toContainText('系统浏览器');
+    } else {
+      await expect(page.locator('#toast')).toContainText('系统浏览器');
+      await helper('scripts/desktop-foreground.ps1', []);
+    }
     assert.equal(page.url(), root, 'Help must not unload the running application');
   }
   assert.equal(await page.evaluate(async () => {
     try { await window.__TAURI_INTERNALS__.invoke('open_external', { url: 'https://example.com/untrusted' }); return false; } catch { return true; }
   }), true, 'Rust must reject a non-allowlisted URL');
-  await helper('scripts/desktop-foreground.ps1', []);
   await expect(page.locator('#load-miao')).toBeEnabled();
   await expect(page.locator('#cat-editor')).toBeEnabled();
   const directory = await mkdtemp(join(tmpdir(), 'miao-exports-'));

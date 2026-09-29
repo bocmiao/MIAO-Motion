@@ -25,7 +25,7 @@ try {
   await page.locator('#load-miao').click();
   await expect(page.locator('#stage')).toHaveAttribute('data-render-ready', 'true', { timeout: 60_000 });
   await page.locator('#onboarding-later').click();
-  // Use the real performance setting on the CI software renderer.
+  // Use the real performance setting on the hosted CI graphics adapter.
   await page.locator('#render-quality').evaluate(input => { input.value = 'performance'; input.dispatchEvent(new Event('change', { bubbles: true })); });
   await checkDesktopIO(page);
   await page.locator('.studio-settings > summary').click();
