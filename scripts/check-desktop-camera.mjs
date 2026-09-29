@@ -32,9 +32,11 @@ try {
   await page.locator('#background-toggle').click();
   await page.locator('#native-camera-toggle').click();
   await expect(page.locator('#native-camera-status')).toContainText('正在输出', { timeout: 15_000 });
+  const sentFrames = () => page.locator('#native-camera-status').evaluate(status => Number(status.dataset.frames ?? 0));
   const frames = [];
   for (const [name, color] of [['red', '#ff0000'], ['blue', '#0000ff']]) {
     await page.bringToFront().catch(error => console.warn('WebView2 foreground request:', String(error)));
+    const framesBefore = await sentFrames();
     // Record whether the page is still producing frames; a paused page cannot feed the camera either.
     const pageState = await page.evaluate(() => new Promise(resolve => {
       const timer = setTimeout(() => resolve({ visibility: document.visibilityState, animationFrame: false }), 2000);
@@ -50,8 +52,9 @@ try {
       input.dispatchEvent(new Event('input', { bubbles: true }));
       input.dispatchEvent(new Event('change', { bubbles: true }));
     }, color);
-    // Wait for a changed rendered frame before the receiver opens.
-    await page.waitForTimeout(1000);
+    // Wait until the app has sent two more frames after the change: a busy CI runner lowers the output
+    // rate, so a fixed delay could capture a frame rendered before the new color.
+    await expect.poll(sentFrames, { timeout: 30_000 }).toBeGreaterThanOrEqual(framesBefore + 2);
     const path = 'test-results/desktop-camera-' + name + '.png';
     await capture(path);
     frames.push(PNG.sync.read(readFileSync(path)));

@@ -244,7 +244,14 @@ test('native bridge sends bounded binary frames and releases on stop; phone driv
   await page.getByText('原生虚拟摄像头（Windows）', { exact: true }).click();
   await page.locator('#native-camera-toggle').click();
   await expect(page.locator('#native-camera-status')).toContainText('接收软件已连接');
+  await expect(page.locator('#native-camera-status')).toContainText('帧/秒');
   expect(await page.evaluate(() => window.__nativeFrames[0].length)).toBe(640*360*3);
+  // The sent-frame counter advances with every delivered frame; the installed-app test waits on it.
+  const sent = () => page.locator('#native-camera-status').evaluate(status => Number(status.dataset.frames ?? 0));
+  const first = await sent();
+  expect(first).toBeGreaterThan(0);
+  await expect.poll(sent).toBeGreaterThanOrEqual(first + 2);
+  expect(await sent()).toBeLessThanOrEqual(await page.evaluate(() => window.__nativeFrames.length));
   await page.locator('#native-camera-toggle').click();
   expect(await page.evaluate(() => window.__nativeStops)).toBeGreaterThan(0);
   await page.getByText('手机面捕（iFacialMocap）', { exact: true }).click();
