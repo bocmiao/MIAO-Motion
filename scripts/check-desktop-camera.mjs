@@ -25,6 +25,7 @@ try {
   await page.locator('#load-miao').click();
   await expect(page.locator('#stage')).toHaveAttribute('data-render-ready', 'true', { timeout: 60_000 });
   await page.locator('#onboarding-later').click();
+  await checkDesktopIO(page);
   await page.locator('.studio-settings > summary').click();
   await page.locator('#avatar-material').selectOption({ label: '深青色衣服' });
   await page.getByText('原生虚拟摄像头（Windows）', { exact: true }).click();
@@ -34,6 +35,11 @@ try {
   await page.locator('#native-camera-toggle').click();
   await expect(page.locator('#native-camera-status')).toContainText('正在输出', { timeout: 15_000 });
   const sentFrames = () => page.locator('#native-camera-status').evaluate(status => Number(status.dataset.frames ?? 0));
+  await page.evaluate(() => {
+    window.__desktopAnimationFrames = 0;
+    const count = () => { window.__desktopAnimationFrames++; requestAnimationFrame(count); };
+    requestAnimationFrame(count);
+  });
   const frames = [];
   for (const [name, color] of [['red', '#ff0000'], ['blue', '#0000ff']]) {
     await page.bringToFront().catch(error => console.warn('WebView2 foreground request:', String(error)));
@@ -55,7 +61,11 @@ try {
     }, color);
     // Wait until the app has sent two more frames after the change: a busy CI runner lowers the output
     // rate, so a fixed delay could capture a frame rendered before the new color.
-    await expect.poll(sentFrames, { timeout: 30_000 }).toBeGreaterThanOrEqual(framesBefore + 2);
+    await expect.poll(async () => {
+      const state = await page.evaluate(() => ({ sent: Number(document.getElementById('native-camera-status').dataset.frames ?? 0), rendered: window.__desktopAnimationFrames, visibility: document.visibilityState }));
+      console.log('Installed output progress', state);
+      return state.sent;
+    }, { timeout: 30_000 }).toBeGreaterThanOrEqual(framesBefore + 2);
     const path = 'test-results/desktop-camera-' + name + '.png';
     await capture(path);
     frames.push(PNG.sync.read(readFileSync(path)));
@@ -75,7 +85,6 @@ try {
   await page.evaluate(() => document.getElementById('native-camera-toggle').click());
   await expect(page.locator('#native-camera-toggle')).toContainText('开始', { timeout: 10_000 });
   console.log('Native output stop handler completed.');
-  await checkDesktopIO(page);
 } catch (error) {
   console.error('Installed app verification failed:', error);
   const state = await page.evaluate(() => ({ nativeStatus: document.getElementById('native-camera-status')?.textContent,

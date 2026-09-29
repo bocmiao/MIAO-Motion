@@ -13,7 +13,9 @@ $pe = [BitConverter]::ToInt32($bytes, 0x3c)
 if ([BitConverter]::ToUInt16($bytes, $pe + 24 + 68) -ne 2) { throw '主程序仍使用控制台子系统' }
 # Match Playwright's foreground test environment: receiver processes must not
 # cause WebView2's native-window occlusion to suspend DOM polling in CI.
-$browserArguments = '--remote-debugging-port=9222 --disable-background-timer-throttling --disable-backgrounding-occluded-windows --disable-renderer-backgrounding --disable-features=CalculateNativeWinOcclusion'
+# Hosted runners have no physical GPU. Exercise the installed WebView2 with a deterministic
+# software renderer, including actual native dialogs/OLE/IPC; production GPU settings are unchanged.
+$browserArguments = '--remote-debugging-port=9222 --use-angle=swiftshader --enable-unsafe-swiftshader --disable-background-timer-throttling --disable-backgrounding-occluded-windows --disable-renderer-backgrounding --disable-features=CalculateNativeWinOcclusion'
 $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = $browserArguments
 # Elevated WebView2 150+ ignores environment overrides. Apply a scoped debugging
 # policy only inside disposable GitHub runners, never on a developer/user machine.
