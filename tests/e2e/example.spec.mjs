@@ -10,6 +10,7 @@ test('a beginner loads the bundled real avatar without external network or camer
   });
   await page.goto('/');
   await page.locator('#onboarding-next').click();
+  if (await page.locator('[data-onboarding-panel="1"]').isVisible()) await page.locator('[data-onboarding-panel="1"] summary').click();
   await expect(page.locator('#load-example')).toBeEnabled();
   await page.locator('#load-example').click();
   await expect(page.locator('#model-status')).toContainText('兼容性 4/4', { timeout: 60_000 });

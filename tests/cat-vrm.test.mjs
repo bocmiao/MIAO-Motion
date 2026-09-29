@@ -50,7 +50,9 @@ test('re-exporting a v0.3.0 mascot repairs its empty children and unbounded morp
   });
   const before = await validate(legacy);
   assert.deepEqual(errorCodes(before), ['EMPTY_ENTITY', 'MESH_PRIMITIVE_POSITION_ACCESSOR_WITHOUT_BOUNDS']);
-  assert.equal(before.numErrors, 50);
+  const legacyDocument = readCat(legacy).document;
+  const expectedErrors = legacyDocument.nodes.filter(n => !n.children.length).length + legacyDocument.meshes.flatMap(m => m.primitives.flatMap(p => p.targets ?? [])).length;
+  assert.equal(before.numErrors, expectedErrors);
   const repaired = exportCat(legacy, { name: '旧猫', ears: 'pointed', tail: 'long', hair: 'tuft', clothes: 'badge' }, {});
   assert.equal((await validate(repaired)).numErrors, 0);
   // Recomputed bounds equal the ones the generator writes today.

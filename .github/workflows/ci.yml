@@ -216,6 +216,7 @@ jobs:
         shell: pwsh
         run: ./scripts/smoke-native-camera.ps1
       - run: npm run desktop:build -- -- --locked
+      - run: cargo test --locked --manifest-path src-tauri/Cargo.toml --lib
       - name: Install, launch, reinstall, upgrade and uninstall NSIS package
         # Includes camera component lifecycle regressions (see scripts/smoke-desktop.ps1).
         timeout-minutes: 12

@@ -1,3 +1,4 @@
+import { checkDesktopIO } from './check-desktop-io.mjs';
 import { chromium, expect } from '@playwright/test';
 import { spawn } from 'node:child_process';
 import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
@@ -74,6 +75,7 @@ try {
   await page.evaluate(() => document.getElementById('native-camera-toggle').click());
   await expect(page.locator('#native-camera-toggle')).toContainText('开始', { timeout: 10_000 });
   console.log('Native output stop handler completed.');
+  await checkDesktopIO(page);
 } catch (error) {
   console.error('Installed app verification failed:', error);
   const state = await page.evaluate(() => ({ nativeStatus: document.getElementById('native-camera-status')?.textContent,

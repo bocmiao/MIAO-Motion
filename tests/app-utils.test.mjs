@@ -25,7 +25,7 @@ test('settings parsing uses safe defaults and bounds', () => {
 assert.deepEqual(parseSettings(null), DEFAULT_SETTINGS);
 assert.deepEqual(parseSettings('{broken'), DEFAULT_SETTINGS);
 assert.deepEqual(parseSettings('{"background":"green","cameraId":"cam-2","sensitivity":9}'), {
-  activeModelId: '', background: 'green', cameraId: 'cam-2', mirror: true, onboardingComplete: false, outputAspect: 'auto', renderQuality: 'balanced', sensitivity: 1.5, smoothing: 1, viewPreset: 'upper',
+  activeModelId: '', background: 'green', bodyTracking: false, cameraId: 'cam-2', mirror: true, onboardingComplete: false, outputAspect: 'auto', renderQuality: 'balanced', sensitivity: 1.5, smoothing: 1, viewPreset: 'upper',
 });
 assert.equal(parseSettings('{"onboardingComplete":true}').onboardingComplete, true);
 assert.equal(parseSettings('{"renderQuality":"quality"}').renderQuality, 'quality');
@@ -71,8 +71,8 @@ assert.equal(estimateModelPerformance({ fileBytes: 20e6, triangles: 250_000, mat
 
 test('settings profiles, GPU fallback, error hints, and diagnostics privacy', async () => {
 const profile = createSettingsProfile({ ...DEFAULT_SETTINGS, background: 'green', sensitivity: 1.4 });
-assert.deepEqual(parseSettingsProfile(JSON.stringify(profile)), { activeModelId: '', background: 'green', mirror: true, outputAspect: 'auto', renderQuality: 'balanced', sensitivity: 1.4, smoothing: 1, viewPreset: 'upper' });
-assert.deepEqual(parseSettingsProfile(JSON.stringify({ format: 'miao-motion-settings', version: 1, settings: { background: 'green' } })), { activeModelId: '', background: 'green', mirror: true, outputAspect: 'auto', renderQuality: 'balanced', sensitivity: 1, smoothing: 1, viewPreset: 'upper' });
+assert.deepEqual(parseSettingsProfile(JSON.stringify(profile)), { activeModelId: '', background: 'green', bodyTracking: false, mirror: true, outputAspect: 'auto', renderQuality: 'balanced', sensitivity: 1.4, smoothing: 1, viewPreset: 'upper' });
+assert.deepEqual(parseSettingsProfile(JSON.stringify({ format: 'miao-motion-settings', version: 1, settings: { background: 'green' } })), { activeModelId: '', background: 'green', bodyTracking: false, mirror: true, outputAspect: 'auto', renderQuality: 'balanced', sensitivity: 1, smoothing: 1, viewPreset: 'upper' });
 assert.equal(parseSettingsProfile('{"format":"other"}'), null);
 const delegates = [];
 const fallback = await createWithGpuFallback(async (options) => {

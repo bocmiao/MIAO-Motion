@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
@@ -23,7 +24,7 @@ test('the CLI prints one path#label argument per asset for gh release create', (
   const directory = mkdtempSync(join(tmpdir(), 'miao-assets-'));
   try {
     for (const name of assets) writeFileSync(join(directory, name), 'x');
-    const lines = execFileSync(process.execPath, [new URL('../scripts/release-asset-labels.mjs', import.meta.url).pathname, directory], { encoding: 'utf8' }).trim().split('\n');
+    const lines = execFileSync(process.execPath, [fileURLToPath(new URL('../scripts/release-asset-labels.mjs', import.meta.url)), directory], { encoding: 'utf8' }).trim().split('\n');
     assert.equal(lines.length, assets.length);
     for (const line of lines) {
       const [path, label] = line.split('#');

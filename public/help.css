@@ -15,3 +15,5 @@ th,td { padding:9px; border:1px solid #39425d; text-align:left }
 .tutorial-image { max-width: 100%; height: auto; }
 code { overflow-wrap:anywhere }
 @media (max-width: 600px) { body { padding:24px 16px 56px } table { display:block; overflow-x:auto } }
+
+.character-steps { display: block; width: 100%; height: auto; margin: 20px 0; }

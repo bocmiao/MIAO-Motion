@@ -1,9 +1,10 @@
-export const catChoices = { ears: ['pointed', 'round'], tail: ['long', 'short'], hair: ['tuft', 'smooth'], clothes: ['badge', 'hoodie'] } as const;
+export const catChoices = { ears: ['pointed', 'round', 'tall', 'folded'], tail: ['long', 'short', 'fluffy', 'curled'], hair: ['tuft', 'smooth', 'side', 'double'], clothes: ['badge', 'hoodie', 'scarf', 'bow'] } as const;
 export type CatCategory = keyof typeof catChoices;
 export type CatStyle = { name: string } & Record<CatCategory, string>;
 type Accessor = { bufferView?: number; byteOffset?: number; componentType: number; count: number; type: string; min?: number[]; max?: number[]; sparse?: unknown };
 type CatDocument = {
   asset: { generator?: string };
+  extras?: { miaoCharacter?: { name: string; parts: Record<string, string>; colors: Record<string, string> } };
   nodes: { name?: string; scale?: number[]; children?: number[] }[];
   meshes?: { primitives: { attributes: Record<string, number>; targets?: Record<string, number>[] }[] }[];
   accessors?: Accessor[];
@@ -61,6 +62,7 @@ export function exportCat(buffer: ArrayBuffer, style: CatStyle, colors: Record<s
     if (!(catChoices[category] as readonly string[]).includes(style[category])) throw new Error('未知部件');
     for (const choice of catChoices[category]) {
       const node = document.nodes.find(n => n.name === `miao_part_${category}_${choice}`)!;
+      if (!node) { if (choice === style[category]) throw new Error('这个旧版角色没有所选部件，请在创建器中制作新版角色'); continue; }
       node.scale = choice === style[category] ? [1,1,1] : [0,0,0];
     }
   }
@@ -69,6 +71,14 @@ export function exportCat(buffer: ArrayBuffer, style: CatStyle, colors: Record<s
     if (color?.length === 3 && color.every(x => Number.isFinite(x) && x >= 0 && x <= 1) && material.pbrMetallicRoughness) {
       const alpha = material.pbrMetallicRoughness.baseColorFactor?.[3] ?? 1;
       material.pbrMetallicRoughness.baseColorFactor = [...color, alpha];
+    }
+  }
+  if (document.extras?.miaoCharacter) {
+    document.extras.miaoCharacter.name = document.extensions.VRMC_vrm.meta.name;
+    for (const category of Object.keys(catChoices) as CatCategory[]) document.extras.miaoCharacter.parts[category] = style[category];
+    for (const [material, field] of Object.entries({ '奶油色毛发': 'fur', '深青色衣服': 'outfit', '徽章与袖口': 'accent', '瞳孔': 'eyes' })) {
+      const color = colors[material];
+      if (color?.length === 3 && color.every(x => Number.isFinite(x) && x >= 0 && x <= 1)) document.extras.miaoCharacter.colors[field] = '#' + color.map(x => Math.round((x <= 0.0031308 ? x * 12.92 : 1.055 * x ** (1 / 2.4) - 0.055) * 255).toString(16).padStart(2, '0')).join('');
     }
   }
   const encoded = new TextEncoder().encode(JSON.stringify(document));

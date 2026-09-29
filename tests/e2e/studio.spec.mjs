@@ -82,7 +82,7 @@ test('home choices and platform guide lead to an exportable customized mascot', 
   test.setTimeout(120_000);
   await open(page);
   await expect(page.locator('#quick-import')).toBeVisible();
-  await expect(page.getByRole('link',{name:'教我做角色',exact:true})).toHaveAttribute('href','./create-character.html');
+  await expect(page.getByRole('button',{name:'创建我的角色',exact:true})).toBeVisible();
   await page.locator('#quick-miao').click();
   await expect(page.locator('#stage')).toHaveAttribute('data-render-ready','true',{timeout:60000});
   await page.locator('.studio-settings > summary').click();
