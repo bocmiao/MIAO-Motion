@@ -31,6 +31,22 @@ export async function checkDesktopIO(page) {
   assert.equal(await page.evaluate(async () => {
     try { await window.__TAURI_INTERNALS__.invoke('open_external', { url: 'https://example.com/untrusted' }); return false; } catch { return true; }
   }), true, 'Rust must reject a non-allowlisted URL');
+  await page.locator('#quick-miao').evaluate(button => button.click());
+  await expect(page.locator('#cat-editor')).toBeEnabled();
+  const directory = await mkdtemp(join(tmpdir(), 'miao-exports-'));
+  for (const [button, name] of [['cat-export', 'cat.vrm'], ['export-settings', 'settings.json'], ['export-diagnostics', 'diagnostics.json']]) {
+    const destination = join(directory, name);
+    await Promise.all([
+      helper('scripts/desktop-dialog.ps1', ['-Destination', destination]),
+      page.locator('#' + button).evaluate(button => button.click()),
+    ]);
+    await expect.poll(async () => (await readFile(destination).catch(() => Buffer.alloc(0))).length).toBeGreaterThan(0);
+    const bytes = await readFile(destination);
+    if (name.endsWith('.vrm')) assert.equal(bytes.readUInt32LE(0), 0x46546c67); else JSON.parse(bytes.toString());
+    await expect(page.locator(button === 'cat-export' ? '#cat-editor-status' : '#toast')).toContainText(button === 'cat-export' ? '已导出' : '文件已保存');
+  }
+  await Promise.all([helper('scripts/desktop-dialog.ps1', ['-Cancel']), page.locator('#export-settings').evaluate(button => button.click())]);
+  await expect(page.locator('#toast')).toContainText('已取消保存');
   // Real OLE/Windows mouse drag, not a synthetic DOM event or setInputFiles.
   await page.evaluate(() => { for (const dialog of document.querySelectorAll('dialog[open]')) dialog.close(); });
   await page.locator('#stage').scrollIntoViewIfNeeded();
@@ -48,20 +64,6 @@ export async function checkDesktopIO(page) {
   await expect(page.locator('#stage')).toHaveAttribute('data-render-ready', 'true');
   await page.locator('#quick-miao').evaluate(button => button.click());
   await expect(page.locator('#cat-editor')).toBeEnabled();
-  const directory = await mkdtemp(join(tmpdir(), 'miao-exports-'));
-  for (const [button, name] of [['cat-export', 'cat.vrm'], ['export-settings', 'settings.json'], ['export-diagnostics', 'diagnostics.json']]) {
-    const destination = join(directory, name);
-    await Promise.all([
-      helper('scripts/desktop-dialog.ps1', ['-Destination', destination]),
-      page.locator('#' + button).evaluate(button => button.click()),
-    ]);
-    await expect.poll(async () => (await readFile(destination).catch(() => Buffer.alloc(0))).length).toBeGreaterThan(0);
-    const bytes = await readFile(destination);
-    if (name.endsWith('.vrm')) assert.equal(bytes.readUInt32LE(0), 0x46546c67); else JSON.parse(bytes.toString());
-    await expect(page.locator(button === 'cat-export' ? '#cat-editor-status' : '#toast')).toContainText(button === 'cat-export' ? '已导出' : '文件已保存');
-  }
-  await Promise.all([helper('scripts/desktop-dialog.ps1', ['-Cancel']), page.locator('#export-settings').evaluate(button => button.click())]);
-  await expect(page.locator('#toast')).toContainText('已取消保存');
   await page.screenshot({ path: 'test-results/desktop-camera-io.png' });
   console.log('Installed WebView2: every help link, external allowlist, native OLE drag, three system Save As dialogs and cancellation passed.');
 }
