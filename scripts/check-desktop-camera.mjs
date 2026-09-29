@@ -35,7 +35,21 @@ try {
   const frames = [];
   for (const [name, color] of [['red', '#ff0000'], ['blue', '#0000ff']]) {
     await page.bringToFront().catch(error => console.warn('WebView2 foreground request:', String(error)));
-    await page.locator('#avatar-color').fill(color);
+    // Record whether the page is still producing frames; a paused page cannot feed the camera either.
+    const pageState = await page.evaluate(() => new Promise(resolve => {
+      const timer = setTimeout(() => resolve({ visibility: document.visibilityState, animationFrame: false }), 2000);
+      requestAnimationFrame(() => { clearTimeout(timer); resolve({ visibility: document.visibilityState, animationFrame: true }); });
+    }));
+    console.log('WebView2 page state before ' + name + ':', pageState);
+    // Set the value directly: Playwright's fill polls actionability on animation frames, which WebView2
+    // can pause for a covered CI window. The red-to-blue pixel assertion below still proves the change
+    // reached the DirectShow receiver.
+    await page.locator('#avatar-color').evaluate((input, value) => {
+      if (input.disabled) throw new Error('颜色控件处于禁用状态，换色没有选中材质');
+      input.value = value;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    }, color);
     // Wait for a changed rendered frame before the receiver opens.
     await page.waitForTimeout(1000);
     const path = 'test-results/desktop-camera-' + name + '.png';
