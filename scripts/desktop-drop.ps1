@@ -38,15 +38,17 @@ public static class NativeFileDrop {
       form.Close();
     };
     form.Shown += (sender, args) => {
-      // Override the hidden startup hint inherited from the PowerShell helper.
-      ShowWindow(form.Handle, 5);
-      form.Activate();
-      SetForegroundWindow(form.Handle);
+      var sourceWindow = form.Handle;
       var start = form.PointToScreen(new System.Drawing.Point(form.ClientSize.Width / 2, form.ClientSize.Height / 2));
       Console.WriteLine("Native drag coordinates: " + start + " -> " + point.X + "," + point.Y);
       deadline.Start();
       new Thread(() => {
-        Thread.Sleep(1000);
+        // Shown fires before WinForms finishes applying the process startup hint.
+        // Override that hidden hint only after its initial ShowWindow has returned.
+        Thread.Sleep(500);
+        ShowWindow(sourceWindow, 5);
+        SetForegroundWindow(sourceWindow);
+        Thread.Sleep(500);
         var bounds = SystemInformation.VirtualScreen;
         using (var bitmap = new Bitmap(bounds.Width, bounds.Height)) {
           using (var graphics = Graphics.FromImage(bitmap)) graphics.CopyFromScreen(bounds.Location, System.Drawing.Point.Empty, bounds.Size);
