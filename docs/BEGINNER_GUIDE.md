@@ -31,7 +31,7 @@
 
 ### 方法 C：从源码启动
 
-1. 从 [Node.js 官方网站](https://nodejs.org/zh-cn)下载安装 Node.js 22 LTS 或更新版本。
+1. 从 [Node.js 官方网站](https://nodejs.org/zh-cn)下载安装 Node.js 22.18 或更新版本。
 2. 打开 [MIAO Motion GitHub 仓库](https://github.com/bocmiao/MIAO-Motion)，点击 `Code` → `Download ZIP`。
 3. 解压 ZIP。不要直接在压缩包预览窗口运行。
 4. 双击 `start-windows.bat`。

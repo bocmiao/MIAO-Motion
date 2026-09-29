@@ -8,7 +8,7 @@
 
 ## 开发者从零构建
 
-1. 安装 Node.js 22 LTS、Rust stable、Microsoft C++ Build Tools 的“使用 C++ 的桌面开发”（含 Windows SDK、CMake）。
+1. 安装 Node.js 22.18 或更新版本、Rust stable、Microsoft C++ Build Tools 的“使用 C++ 的桌面开发”（含 Windows SDK、CMake）。
 2. Windows 10 1803 以后通常已有 WebView2；若缺少，从微软安装 Evergreen Runtime。
 3. 在仓库目录运行 `npm ci`。
 4. 开发调试运行 `npm run desktop:dev`。
