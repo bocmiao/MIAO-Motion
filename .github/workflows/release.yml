@@ -32,6 +32,8 @@ jobs:
         timeout-minutes: 12
         shell: pwsh
         run: ./scripts/smoke-desktop.ps1
+      # desktop:build rewrites dist with the Tauri-only page policy; rebuild the portable page first.
+      - run: npm run build:app
       - name: Package portable build and checksums
         shell: pwsh
         run: |

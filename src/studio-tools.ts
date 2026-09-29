@@ -1,6 +1,6 @@
 import { Color, Material, Mesh, WebGLRenderer } from 'three';
 import type { VRM } from '@pixiv/three-vrm';
-import { latestRelease, isNewer } from '../public/release-info.js';
+import { installedTag, latestRelease, isNewer } from '../public/release-info.js';
 import { version } from '../package.json';
 import { createAutoQuality } from './auto-quality.mjs';
 
@@ -101,7 +101,7 @@ export function setupStudioTools(renderer: WebGLRenderer, avatar: () => VRM | nu
     status.textContent = '正在查询 GitHub 发布记录…';
     try {
       const release = await latestRelease();
-      status.textContent = isNewer(release.tag, version) ? `发现新版本 ${release.tag}，请打开下载页更新。` : `当前版本 v${version} 已是最新可用版本。`;
+      status.textContent = isNewer(release.tag, installedTag(version)) ? `发现新版本 ${release.tag}，请打开下载页更新。` : `当前版本 v${version} 已是最新可用版本。`;
     } catch { status.textContent = '暂时无法检查更新，请稍后重试或打开官方下载列表。'; }
     finally { updateButton.disabled = false; }
   });

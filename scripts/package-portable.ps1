@@ -1,5 +1,9 @@
 ﻿param([string]$Output = 'release')
 $ErrorActionPreference = 'Stop'
+# The browser build must not carry the desktop-only IPC origins in its page policy.
+if ((Get-Content -Raw -Encoding utf8 'dist/index.html') -match 'ipc\.localhost|ipc:') {
+  throw 'dist 是桌面版构建（页面策略含 Tauri IPC），请先运行 npm run build:app 再打包便携版。'
+}
 $package = Join-Path $Output 'MIAO-Motion-portable'
 $support = Join-Path $package 'support'
 New-Item -ItemType Directory -Force $support | Out-Null
