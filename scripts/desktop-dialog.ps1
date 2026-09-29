@@ -65,11 +65,20 @@ do {
 } while ($entered -ne $Destination -and [DateTime]::UtcNow -lt $deadline)
 if ($entered -ne $Destination) { throw "文件名输入未完成：$entered" }
 Write-Host "Native Save As entered destination: $entered"
-$buttonCondition = [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::AutomationIdProperty, '1')
+$buttonCondition = [Windows.Automation.AndCondition]::new(
+  [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::AutomationIdProperty, '1'),
+  [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::NameProperty, 'Save'))
 $deadline = [DateTime]::UtcNow.AddSeconds(10)
 do {
   $button = $dialog.FindFirst([Windows.Automation.TreeScope]::Descendants, $buttonCondition)
   if (-not $button) { Start-Sleep -Milliseconds 200 }
 } while (-not $button -and [DateTime]::UtcNow -lt $deadline)
 if (-not $button) { throw '另存为窗口缺少保存按钮' }
+Write-Host "Native Save As button: $($button.Current.Name) / $($button.Current.AutomationId)"
 if (-not [NativeSaveDialog]::PostMessage([IntPtr]$button.Current.NativeWindowHandle, 0x00F5, [IntPtr]::Zero, [IntPtr]::Zero)) { throw '无法点击保存按钮' }
+$deadline = [DateTime]::UtcNow.AddSeconds(10)
+do {
+  Start-Sleep -Milliseconds 200
+  $remaining = [Windows.Automation.AutomationElement]::RootElement.FindFirst([Windows.Automation.TreeScope]::Children, $condition)
+} while ($remaining -and [DateTime]::UtcNow -lt $deadline)
+if ($remaining) { throw '点击保存后另存为窗口未关闭' }
