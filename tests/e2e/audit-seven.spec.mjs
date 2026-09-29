@@ -1,6 +1,18 @@
 import { test, expect } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 
+test('camera success advances the guide without another Next click', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('#onboarding-next').click();
+  await page.locator('[data-onboarding-panel="1"] summary').click();
+  await page.locator('#onboarding-skip').click();
+  await page.locator('#onboarding-camera').click();
+  await expect(page.locator('[data-onboarding-panel="3"]')).toBeVisible({ timeout: 60_000 });
+  await page.locator('#onboarding-later').click();
+  await page.locator('#camera-toggle').click();
+  await expect(page.locator('#camera-status')).toContainText('尚未开启');
+});
+
 test('guide footer remains visible, preview stays accessible, and successful selection advances', async ({ page }) => {
   await page.setViewportSize({ width: 860, height: 620 });
   await page.goto('/');
@@ -72,6 +84,22 @@ test('creation renders, resumes drafts, saves one library entry, and reimports e
   await page.locator('#model-file').setInputFiles({ name: '榛子猫.vrm', mimeType: 'model/vrm', buffer: bytes });
   await expect(page.locator('#stage')).toHaveAttribute('data-render-ready', 'true');
   await expect(page.locator('#edit-created-character')).toBeEnabled();
+  await page.locator('.advanced-settings > summary').click();
+  await page.locator('#edit-created-character').click();
+  await expect(page.locator('#creator-name')).toHaveValue('榛子猫');
+  await page.locator('#creator-next').click();
+  await page.locator('#creator-next').click();
+  await expect(page.locator('[data-field="face.eyeShape"]')).toHaveValue('round');
+  await page.locator('#creator-save').click();
+  await expect(page.locator('#creator-status')).toContainText('已保存到角色库');
+  const count = await page.locator('#model-library option').count();
+  await page.locator('#creator-close').click();
+  await page.locator('#edit-created-character').click();
+  await page.locator('#creator-name').fill('榛子猫改名');
+  await page.locator('#creator-save').click();
+  await expect(page.locator('#creator-status')).toContainText('已保存到角色库');
+  expect(await page.locator('#model-library option').count()).toBe(count);
+  await expect(page.locator('#model-library option:checked')).toContainText('榛子猫改名');
 });
 
 test('pixiv material menu contains no English or separate outlines', async ({ page }) => {
@@ -81,4 +109,15 @@ test('pixiv material menu contains no English or separate outlines', async ({ pa
   const names = await page.locator('#avatar-material option').allTextContents();
   expect(names.length).toBeGreaterThan(3);
   expect(names.join('')).not.toMatch(/[A-Za-z]/);
+  await expect(page.locator('#import-model')).toBeEnabled();
+  await page.locator('.studio-settings > summary').click();
+  const lastPart = String(names.length - 1);
+  await page.locator('#avatar-material').selectOption(lastPart);
+  await page.locator('#avatar-color').fill('#ba4d71');
+  await page.reload(); await page.locator('#onboarding-later').click();
+  await expect(page.locator('#stage')).toHaveAttribute('data-render-ready', 'true');
+  await expect(page.locator('#import-model')).toBeEnabled();
+  await page.locator('.studio-settings > summary').click();
+  await page.locator('#avatar-material').selectOption(lastPart);
+  await expect(page.locator('#avatar-color')).toHaveValue('#ba4d71');
 });

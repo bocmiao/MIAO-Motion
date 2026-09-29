@@ -18,6 +18,7 @@ export function setupStudioTools(renderer: WebGLRenderer, avatar: () => VRM | nu
   let originals: Color[] = [];
   let materialIndices: number[] = [];
   let outlines: (Material & { color: Color })[][] = [];
+  const originalOutlines = new Map<Material, Color>();
   let overrides: Record<string, string> = {};
   let selectedExpression = '';
   let mic: MediaStream | null = null;
@@ -38,16 +39,25 @@ export function setupStudioTools(renderer: WebGLRenderer, avatar: () => VRM | nu
     if (material) colorInput.value = `#${material.color.getHexString()}`;
   };
   materialSelect.addEventListener('change', selectColor);
+  const paint = (index: number, color: string) => {
+    const material = materials[index];
+    if (!material) return;
+    for (const target of [material, ...(outlines[index] ?? [])]) {
+      target.color.set(color);
+      // MToon draws its outline with a separate uniform, not the base color.
+      if ('outlineColorFactor' in target && target.outlineColorFactor instanceof Color) target.outlineColorFactor.copy(target.color).multiplyScalar(0.35);
+    }
+  };
   colorInput.addEventListener('input', () => {
     const index = Number(materialSelect.value), material = materials[index];
     if (!material) return;
-    material.color.set(colorInput.value);
-    outlines[index]?.forEach(m => m.color.copy(material.color));
+    paint(index, colorInput.value);
     overrides[String(materialIndices[index])] = colorInput.value;
     saveColors();
   });
   element('avatar-color-reset').addEventListener('click', () => {
     materials.forEach((material, index) => { if (originals[index]) material.color.copy(originals[index]); outlines[index]?.forEach(m => m.color.copy(material.color)); });
+    for (const [material, color] of originalOutlines) if ('outlineColorFactor' in material && material.outlineColorFactor instanceof Color) material.outlineColorFactor.copy(color);
     overrides = {}; saveColors(); selectColor();
   });
   const chooseExpression = (name: string) => {
@@ -123,13 +133,16 @@ export function setupStudioTools(renderer: WebGLRenderer, avatar: () => VRM | nu
       });
       materials = [...found].filter(m => !/outline/i.test(m.name) || ![...found].some(other => other !== m && withoutOutline(other.name) === withoutOutline(m.name) && !/outline/i.test(other.name)));
       materialIndices = materials.map(m => [...found].indexOf(m));
+      originalOutlines.clear();
+      for (const material of found) if ('outlineColorFactor' in material && material.outlineColorFactor instanceof Color) originalOutlines.set(material, material.outlineColorFactor.clone());
       outlines = materials.map(m => [...found].filter(other => other !== m && /outline/i.test(other.name) && withoutOutline(other.name) === withoutOutline(m.name)));
       originals = materials.map(m => m.color.clone()); overrides = {};
       try {
         const stored: unknown = JSON.parse(localStorage.getItem(key()) ?? '{}');
         if (stored && typeof stored === 'object') for (const [index, color] of Object.entries(stored)) {
-          if (typeof color === 'string' && /^#[0-9a-f]{6}$/i.test(color) && materials[Number(index)]) {
-            materials[Number(index)]!.color.set(color); outlines[Number(index)]?.forEach(m => m.color.set(color)); overrides[index] = color;
+          const selected = materialIndices.indexOf(Number(index));
+          if (typeof color === 'string' && /^#[0-9a-f]{6}$/i.test(color) && materials[selected]) {
+            paint(selected, color); overrides[index] = color;
           }
         }
       } catch { /* A damaged preference must not prevent loading a character. */ }

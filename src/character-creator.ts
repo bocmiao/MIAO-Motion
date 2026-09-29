@@ -10,6 +10,7 @@ export function setupCharacterCreator(options: {
   preview: (file: File) => Promise<boolean>;
   save: (file: File, id?: string) => Promise<string>;
   currentRecipe: () => unknown;
+  currentId: () => string;
   camera: () => void;
   frame: () => void;
 }) {
@@ -69,7 +70,9 @@ export function setupCharacterCreator(options: {
   const updateBase = () => {
     const base = characterBases.find(base => base.id === recipe.baseId)!;
     for (const [category, choices] of Object.entries(base.parts)) {
-      element<HTMLSelectElement>('creator-' + category).replaceChildren(...Object.entries(choices).map(([id, name]) => new Option(name, id)));
+      const select = element<HTMLSelectElement>('creator-' + category);
+      select.replaceChildren(...Object.entries(choices).map(([id, name]) => new Option(name, id)));
+      select.closest('label')!.hidden = !Object.keys(choices).length;
     }
     element('creator-presets').replaceChildren(...base.presets.map(preset => {
       const button = document.createElement('button'); button.type = 'button'; button.className = 'soft-button'; button.textContent = preset.label;
@@ -110,6 +113,7 @@ export function setupCharacterCreator(options: {
   const cameraObserver = new MutationObserver(() => { element('creator-camera-state').textContent = cameraStatus.textContent; });
   cameraObserver.observe(cameraStatus, { childList: true, characterData: true, subtree: true });
   element('creator-recenter').addEventListener('click', options.frame);
+  new ResizeObserver(() => { if (dialog.open) options.frame(); }).observe(element('creator-preview'));
   const save = async (exportOnly: boolean) => {
     if (busy) return;
     busy = true; form.disabled = true;
@@ -129,7 +133,7 @@ export function setupCharacterCreator(options: {
   const open = (fresh: boolean, fromCurrent = false) => {
     try {
       if (fresh) { recipe = structuredClone(defaultCharacter); step = 0; libraryId = ''; }
-      else if (fromCurrent) { recipe = normalizeCharacter(options.currentRecipe()); step = 0; libraryId = ''; }
+      else if (fromCurrent) { recipe = normalizeCharacter(options.currentRecipe()); step = 0; libraryId = options.currentId(); }
       else {
         const draft = JSON.parse(localStorage.getItem(DRAFT_KEY) ?? 'null');
         recipe = normalizeCharacter(draft?.recipe ?? defaultCharacter);

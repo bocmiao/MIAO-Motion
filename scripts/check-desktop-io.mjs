@@ -48,6 +48,7 @@ export async function checkDesktopIO(page) {
     await expect.poll(async () => (await readFile(destination).catch(() => Buffer.alloc(0))).length).toBeGreaterThan(0);
     const bytes = await readFile(destination);
     if (name.endsWith('.vrm')) assert.equal(bytes.readUInt32LE(0), 0x46546c67); else JSON.parse(bytes.toString());
+    await expect(page.locator(button === 'cat-export' ? '#cat-editor-status' : '#toast')).toContainText(button === 'cat-export' ? '已导出' : '文件已保存');
   }
   await Promise.all([helper('scripts/desktop-dialog.ps1', ['-Cancel']), page.locator('#export-settings').evaluate(button => button.click())]);
   await expect(page.locator('#toast')).toContainText('已取消保存');

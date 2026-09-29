@@ -282,6 +282,7 @@ const addDiagnosticEvent = (kind: string, value: unknown) => {
 };
 
 const downloadJson = async (name: string, value: unknown) => {
+  showToast('正在准备保存文件…');
   try { showToast(await saveFile(name, new Blob([JSON.stringify(value, null, 2) + '\n'], { type: 'application/json' })) ? '文件已保存' : '已取消保存'); }
   catch { showToast('保存失败，请检查目录权限和剩余空间后重试'); }
 };
@@ -765,6 +766,7 @@ const startCamera = async () => {
     }
   } finally {
     cameraStarting = false;
+    if (cameraStream) advanceOnSuccess(2);
     cameraButton.disabled = false;
     cameraSelect.disabled = false;
     updateOnboarding();
@@ -903,6 +905,8 @@ const removeCurrentModel = async (deleteRecord = true) => {
     VRMUtils.deepDispose(currentVrm.scene);
   }
   currentVrm = null;
+  currentCharacterRecipe = null;
+  required<HTMLButtonElement>('#edit-created-character').disabled = true;
   catEditor.clear();
   studio.reloadAppearance();
   modelPreparing = false;
@@ -1383,8 +1387,14 @@ const resize = () => {
 new ResizeObserver(resize).observe(stage);
 setupCharacterCreator({
   preview: file => loadVrm(file, false),
-  save: async (file, id) => { const saved = await putStoredModel(file, id); await refreshModelLibrary(); return saved.id; },
-  currentRecipe: () => currentCharacterRecipe,
+  save: async (file, id) => {
+    const saved = await putStoredModel(file, id);
+    await updateStoredModel(saved.id, { name: file.name, thumbnail: '' });
+    currentModelId = saved.id; settings = { ...settings, activeModelId: saved.id }; saveSettings();
+    thumbnailPendingId = saved.id; await refreshModelLibrary(); return saved.id;
+  },
+  currentRecipe: () => catEditor.recipe() ?? currentCharacterRecipe,
+  currentId: () => currentModelId,
   camera: () => cameraButton.click(),
   frame: () => { if (currentVrm) frameModel(currentVrm.scene, 'full'); },
 });

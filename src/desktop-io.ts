@@ -1,11 +1,15 @@
 import { invoke, isTauri } from '@tauri-apps/api/core';
 
+let saving = false;
+
 /** One save path for VRM, settings and diagnostics; cancellation is not success. */
 export async function saveFile(name: string, blob: Blob): Promise<boolean> {
   if (isTauri()) {
-    return invoke<boolean>('save_export', new Uint8Array(await blob.arrayBuffer()), {
-      headers: { 'x-file-name': encodeURIComponent(name) },
-    });
+    if (saving) throw new Error('请先完成已打开的保存窗口');
+    saving = true;
+    try {
+      return await invoke<boolean>('save_export', new Uint8Array(await blob.arrayBuffer()), { headers: { 'x-file-name': encodeURIComponent(name) } });
+    } finally { saving = false; }
   }
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');

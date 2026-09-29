@@ -41,10 +41,12 @@ export function normalizeCharacter(input: unknown): CharacterRecipe {
   if (value.version !== undefined && value.version !== 1) throw new Error('此草稿来自更新版本，请更新喵动后打开');
   if (value.baseId !== undefined && !characterBases.some(base => base.id === value.baseId)) throw new Error('这个底座尚未安装，原草稿已保留');
   const result = structuredClone(defaultCharacter);
+  result.baseId = value.baseId ?? defaultCharacter.baseId;
+  const base = characterBases.find(base => base.id === result.baseId)!;
   if (typeof value.name === 'string') result.name = value.name.trim().slice(0, 40) || defaultCharacter.name;
   const selected = (candidate: unknown, choices: readonly string[], fallback: string) => typeof candidate === 'string' && choices.includes(candidate) ? candidate : fallback;
   const bounded = (candidate: unknown, low: number, high: number) => typeof candidate === 'number' && Number.isFinite(candidate) ? Math.min(high, Math.max(low, candidate)) : 1;
-  for (const category of Object.keys(partOptions) as (keyof typeof partOptions)[]) result.parts[category] = selected(value.parts?.[category], Object.keys(partOptions[category]), result.parts[category]);
+  for (const category of Object.keys(partOptions) as (keyof typeof partOptions)[]) result.parts[category] = selected(value.parts?.[category], Object.keys(base.parts[category]), Object.keys(base.parts[category])[0] ?? '');
   result.proportions.head = bounded(value.proportions?.head, 0.8, 1.25);
   result.proportions.width = bounded(value.proportions?.width, 0.8, 1.25);
   result.face.eyeSize = bounded(value.face?.eyeSize, 0.7, 1.4);
