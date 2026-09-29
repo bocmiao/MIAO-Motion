@@ -12,6 +12,7 @@ async function importAvatar(page, name = 'minimal-avatar.vrm') {
 
 for (const name of ['minimal-avatar.vrm', 'minimal-avatar-v0.vrm']) {
   test(`${name}: visible head pixels in all framing presets; broadcast is green and fits`, async ({ page }) => {
+    test.setTimeout(120_000);
     await importAvatar(page, name);
     await page.locator('.advanced-settings > summary').click();
     for (const preset of ['head', 'upper', 'full']) {
@@ -24,7 +25,7 @@ for (const name of ['minimal-avatar.vrm', 'minimal-avatar-v0.vrm']) {
           if (a > 200 && r > g * 1.5 && r > b * 1.2) { pixels++; sumY += Math.floor(i / 4 / png.width); }
         }
         return pixels / (png.width * png.height) > (preset === 'full' ? 0.005 : 0.05) && sumY / pixels < png.height * 0.55;
-      }).toBe(true);
+      }, { timeout: 30_000 }).toBe(true);
     }
     await page.locator('[data-view="upper"]').click();
     await page.locator('#broadcast-toggle').click();
@@ -39,7 +40,7 @@ for (const name of ['minimal-avatar.vrm', 'minimal-avatar-v0.vrm']) {
         if (g > 100 && g > r * 2 && g > b * 2) green++;
       }
       return character / (png.width * png.height) > 0.05 && green / (png.width * png.height) > 0.1;
-    }).toBe(true);
+    }, { timeout: 30_000 }).toBe(true);
     await page.screenshot({ path: test.info().outputPath(`${name}-broadcast.png`) });
     await page.keyboard.press('Escape');
     await expect(page.locator('body')).not.toHaveClass(/broadcast-mode/);

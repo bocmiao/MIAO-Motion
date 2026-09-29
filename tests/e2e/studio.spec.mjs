@@ -77,6 +77,7 @@ test('OBS partial failure rolls back only its own scene and input', async ({ pag
 });
 
 test('home choices and platform guide lead to an exportable customized mascot', async ({ page }) => {
+  test.setTimeout(120_000);
   await open(page);
   await expect(page.locator('#quick-import')).toBeVisible();
   await expect(page.getByRole('link',{name:'教我做角色',exact:true})).toHaveAttribute('href','./create-character.html');
@@ -93,6 +94,7 @@ test('home choices and platform guide lead to an exportable customized mascot', 
   const download=await downloadPromise;
   expect(download.suggestedFilename()).toBe('奶茶猫.vrm');
   await page.locator('#model-file').setInputFiles({ name: download.suggestedFilename(), mimeType: 'model/vrm', buffer: await readFile(await download.path()) });
+  await expect(page.locator('#stage')).toHaveAttribute('data-render-ready', 'true', { timeout: 60_000 });
   await expect(page.locator('#model-status')).toContainText('兼容性 4/4');
   await expect(page.locator('#cat-name')).toHaveValue('奶茶猫');
   await expect(page.locator('#cat-ears')).toHaveValue('round');

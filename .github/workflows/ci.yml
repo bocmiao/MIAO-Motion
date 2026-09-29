@@ -222,7 +222,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: desktop-camera-evidence-${{ github.run_id }}
-          path: test-results/desktop-camera-*.png
+          path: test-results/desktop-camera-*
           if-no-files-found: ignore
       - uses: actions/upload-artifact@v4
         with:

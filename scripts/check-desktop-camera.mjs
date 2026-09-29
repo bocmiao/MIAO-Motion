@@ -1,6 +1,6 @@
 import { chromium, expect } from '@playwright/test';
 import { spawn } from 'node:child_process';
-import { readFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import { PNG } from 'pngjs';
 
@@ -9,6 +9,8 @@ const browser = await chromium.connectOverCDP('http://127.0.0.1:9222');
 const page = browser.contexts()[0].pages()[0];
 page.setDefaultTimeout(60_000);
 mkdirSync('test-results', { recursive: true });
+const errors = [];
+page.on('pageerror', error => errors.push(String(error)));
 const capture = file => new Promise((resolve, reject) => {
   const process = spawn('ffmpeg', ['-hide_banner', '-y', '-f', 'dshow', '-video_size', '640x360',
     '-i', 'video=MIAO Motion Camera', '-frames:v', '1', '-update', '1', file], { stdio: 'inherit', windowsHide: true });
@@ -19,7 +21,7 @@ const capture = file => new Promise((resolve, reject) => {
 try {
   await page.locator('#onboarding-next').click();
   await page.locator('#load-miao').click();
-  await expect(page.locator('#stage')).toHaveAttribute('data-render-ready', 'true');
+  await expect(page.locator('#stage')).toHaveAttribute('data-render-ready', 'true', { timeout: 60_000 });
   await page.locator('#onboarding-later').click();
   await page.locator('.studio-settings > summary').click();
   await page.locator('#avatar-material').selectOption({ label: '深青色衣服' });
@@ -28,6 +30,7 @@ try {
   await expect(page.locator('#native-camera-status')).toContainText('虚拟摄像头已安装');
   await page.locator('#background-toggle').click();
   await page.locator('#native-camera-toggle').click();
+  await expect(page.locator('#native-camera-status')).toContainText('正在输出', { timeout: 15_000 });
   const frames = [];
   for (const [name, color] of [['red', '#ff0000'], ['blue', '#0000ff']]) {
     await page.locator('#avatar-color').fill(color);
@@ -47,4 +50,11 @@ try {
   assert.ok(green > 1000, 'Green stage must reach the real DirectShow receiver');
   await page.locator('#native-camera-toggle').click();
   console.log('Installed app → rendered avatar → Tauri IPC → DirectShow receiver verified.', { redToBlue, green });
+} catch (error) {
+  const state = await page.evaluate(() => ({ nativeStatus: document.getElementById('native-camera-status')?.textContent,
+    button: document.getElementById('native-camera-toggle')?.textContent, stage: document.getElementById('stage')?.dataset.renderReady }));
+  console.error('Installed app diagnostics', state, errors);
+  writeFileSync('test-results/desktop-camera-diagnostics.json', JSON.stringify({ state, errors }, null, 2));
+  await page.screenshot({ path: 'test-results/desktop-camera-failure.png' });
+  throw error;
 } finally { await browser.close(); }
