@@ -3,7 +3,6 @@
 #include <windows.h>
 #include <shlobj.h>
 #include <wrl/client.h>
-#include <algorithm>
 #include <atomic>
 #include <cstdlib>
 #include <iostream>
@@ -59,7 +58,7 @@ int wmain(int argc, wchar_t** argv) {
       if (!ClientToScreen(window, &target)) hr = E_FAIL;
       else {
         ShowWindow(window, SW_RESTORE);
-        const auto dragWindow = CreateWindowExW(WS_EX_TOPMOST | WS_EX_TOOLWINDOW, L"STATIC", L"CI file drag source",
+        const auto dragWindow = CreateWindowExW(WS_EX_TOPMOST | WS_EX_TOOLWINDOW, L"BUTTON", L"CI file drag source",
           WS_POPUP, 0, 0, 160, 120, nullptr, nullptr, GetModuleHandleW(nullptr), nullptr);
         if (!dragWindow) return 4;
         // SetWindowPos explicitly shows the source even when the console helper
