@@ -69,9 +69,9 @@ FunctionEnd
       ${Else}
         DetailPrint "虚拟摄像头注销未完成（$3），继续卸载时组件将保留"
         ${If} $0 == "${MIAO_CAMERA_PROTECTED_DLL}"
-          MessageBox MB_YESNO|MB_ICONEXCLAMATION "喵动虚拟摄像头组件没有注销（可能取消了管理员确认，或接收软件仍在使用它）。$\r$\n$\r$\n是否仍然卸载喵动？$\r$\n$\r$\n选择“是”：继续卸载。摄像头组件会保留在只有管理员能修改的受保护目录中，不影响系统安全；以后可以重新安装喵动，在“高级设置”中点“卸载摄像头组件”清理，或请电脑管理员清理。$\r$\n选择“否”：取消卸载，关闭接收软件后再试。" /SD IDYES IDYES miao_camera_uninstall_continue
+          MessageBox MB_YESNO|MB_ICONEXCLAMATION "喵动虚拟摄像头组件没有注销（可能取消了管理员确认，或接收软件仍在使用它）。$\r$\n$\r$\n是否仍然卸载喵动？$\r$\n$\r$\n选择“是”：继续卸载。摄像头组件会保留在只有管理员能修改的受保护目录中，不影响系统安全；以后可以重新安装喵动，在“原生虚拟摄像头（Windows）”中点“卸载摄像头组件”清理，或请电脑管理员清理。$\r$\n选择“否”：取消卸载，关闭接收软件后再试。" /SD IDYES IDYES miao_camera_uninstall_continue
         ${Else}
-          MessageBox MB_YESNO|MB_ICONEXCLAMATION "旧版喵动虚拟摄像头组件没有注销（可能取消了管理员确认）。$\r$\n$\r$\n注意：旧版组件位于普通用户可修改的目录，保留它存在安全风险。建议选择“否”，关闭接收软件后重新卸载并完成管理员确认。$\r$\n$\r$\n是否仍然卸载喵动？选择“是”后，请重新安装喵动，在“高级设置”中点“卸载摄像头组件”清理旧组件，或请电脑管理员清理。" /SD IDYES IDYES miao_camera_uninstall_continue
+          MessageBox MB_YESNO|MB_ICONEXCLAMATION "旧版喵动虚拟摄像头组件没有注销（可能取消了管理员确认）。$\r$\n$\r$\n注意：旧版组件位于普通用户可修改的目录，保留它存在安全风险。建议选择“否”，关闭接收软件后重新卸载并完成管理员确认。$\r$\n$\r$\n是否仍然卸载喵动？选择“是”后，请重新安装喵动，在“原生虚拟摄像头（Windows）”中点“卸载摄像头组件”清理旧组件，或请电脑管理员清理。" /SD IDYES IDYES miao_camera_uninstall_continue
         ${EndIf}
         SetRegView lastused
         Abort
@@ -102,10 +102,10 @@ FunctionEnd
       ${If} $0 != ""
       ${AndIf} $0 != "${MIAO_CAMERA_PROTECTED_DLL}"
         DetailPrint "旧版虚拟摄像头迁移失败（$1），仍位于不受保护的目录"
-        MessageBox MB_ICONEXCLAMATION "旧版喵动虚拟摄像头没有迁移到受保护目录（可能取消了管理员确认）。$\r$\n$\r$\n注意：旧版组件位于普通用户可修改的目录，继续保留存在安全风险。请打开喵动，在“高级设置”中点“卸载摄像头组件”并完成管理员确认来清理旧组件，需要时再重新安装摄像头组件。" /SD IDOK
+        MessageBox MB_ICONEXCLAMATION "旧版喵动虚拟摄像头没有迁移到受保护目录（可能取消了管理员确认）。$\r$\n$\r$\n注意：旧版组件位于普通用户可修改的目录，继续保留存在安全风险。请打开喵动，在“原生虚拟摄像头（Windows）”中点“卸载摄像头组件”并完成管理员确认来清理旧组件，需要时再重新安装摄像头组件。" /SD IDOK
       ${Else}
         DetailPrint "旧版虚拟摄像头已移除，新组件未安装（$1）"
-        MessageBox MB_ICONEXCLAMATION "旧版虚拟摄像头已移除，但新组件没有安装完成。需要时请在喵动“高级设置”中重新安装摄像头组件；其他功能可正常使用。" /SD IDOK
+        MessageBox MB_ICONEXCLAMATION "旧版虚拟摄像头已移除，但新组件没有安装完成。需要时请在喵动“原生虚拟摄像头（Windows）”中重新安装摄像头组件；其他功能可正常使用。" /SD IDOK
       ${EndIf}
     ${EndIf}
   ${ElseIf} $0 == ""
@@ -119,7 +119,7 @@ FunctionEnd
         DetailPrint "已取消管理员确认，未恢复虚拟摄像头"
       ${ElseIf} $1 != "0"
         DetailPrint "虚拟摄像头恢复失败（$1）"
-        MessageBox MB_ICONEXCLAMATION "喵动虚拟摄像头没有恢复。需要时请在喵动“高级设置”中重新安装摄像头组件；其他功能可正常使用。" /SD IDOK
+        MessageBox MB_ICONEXCLAMATION "喵动虚拟摄像头没有恢复。需要时请在喵动“原生虚拟摄像头（Windows）”中重新安装摄像头组件；其他功能可正常使用。" /SD IDOK
       ${EndIf}
     ${EndIf}
   ${EndIf}
