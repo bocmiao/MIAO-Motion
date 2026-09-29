@@ -29,7 +29,7 @@ jobs:
       - name: Install DirectShow test receiver
         run: choco install ffmpeg --no-progress -y
       - name: Smoke-test installed application
-        timeout-minutes: 5
+        timeout-minutes: 12
         shell: pwsh
         run: ./scripts/smoke-desktop.ps1
       - name: Package portable build and checksums

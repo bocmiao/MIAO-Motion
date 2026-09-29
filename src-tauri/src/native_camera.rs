@@ -67,3 +67,86 @@ pub async fn native_camera_install(app: tauri::AppHandle, remove: bool) -> Resul
         code => Err(format!("摄像头操作失败（{}），请关闭接收软件后重试", code.unwrap_or(-1))),
     }
 }
+
+const SERVER_KEY: &str = r"SOFTWARE\Classes\CLSID\{DA9CE316-89EF-4AD6-A156-459B271DF409}\InprocServer32";
+const USER_KEY: &str = r"Software\MIAO Motion\Camera";
+
+/// Machine-wide registration state of the DirectShow component. The DLL path itself is
+/// never returned: a legacy path contains the Windows user name.
+#[derive(serde::Serialize)]
+pub struct ComponentState {
+    /// A MIAO Motion Camera COM server is registered (64-bit view).
+    registered: bool,
+    /// Registered outside `%ProgramFiles%\MIAO Motion Camera` (v0.3.0-beta user-writable
+    /// copy): unsafe, should be removed or reinstalled.
+    legacy: bool,
+    /// "protected" | "legacy" | "none"
+    path_kind: &'static str,
+    /// This Windows user installed it (HKCU marker written by camera-register.exe).
+    registered_by_user: bool,
+}
+
+fn wide(text: &str) -> Vec<u16> { text.encode_utf16().chain(std::iter::once(0)).collect() }
+
+/// Default value of an HKLM/HKCU key, 64-bit registry view.
+fn registry_string(root: windows_sys::Win32::System::Registry::HKEY, key: &str) -> Option<String> {
+    use windows_sys::Win32::System::Registry::{RegGetValueW, RRF_RT_REG_SZ, RRF_SUBKEY_WOW6464KEY};
+    let key = wide(key);
+    let flags = RRF_RT_REG_SZ | RRF_SUBKEY_WOW6464KEY;
+    let mut size = 0u32;
+    // RegGetValueW writes a terminated string into the provided buffer.
+    unsafe {
+        if RegGetValueW(root, key.as_ptr(), std::ptr::null(), flags, std::ptr::null_mut(), std::ptr::null_mut(), &mut size) != 0 { return None; }
+        let mut buffer = vec![0u16; (size as usize).div_ceil(2) + 1];
+        let mut bytes = u32::try_from(buffer.len() * 2).ok()?;
+        if RegGetValueW(root, key.as_ptr(), std::ptr::null(), flags, std::ptr::null_mut(), buffer.as_mut_ptr().cast(), &mut bytes) != 0 { return None; }
+        let length = buffer.iter().position(|&c| c == 0).unwrap_or(buffer.len());
+        Some(String::from_utf16_lossy(&buffer[..length]))
+    }
+}
+
+fn registry_dword(root: windows_sys::Win32::System::Registry::HKEY, key: &str, name: &str) -> Option<u32> {
+    use windows_sys::Win32::System::Registry::{RegGetValueW, RRF_RT_REG_DWORD};
+    let (key, name) = (wide(key), wide(name));
+    let mut value = 0u32;
+    let mut size = std::mem::size_of::<u32>() as u32;
+    let status = unsafe {
+        RegGetValueW(root, key.as_ptr(), name.as_ptr(), RRF_RT_REG_DWORD, std::ptr::null_mut(), (&mut value as *mut u32).cast(), &mut size)
+    };
+    (status == 0).then_some(value)
+}
+
+/// Same source as camera-register.exe (FOLDERID_ProgramFiles).
+fn program_files() -> Option<String> {
+    use windows_sys::Win32::{System::Com::CoTaskMemFree, UI::Shell::{FOLDERID_ProgramFiles, SHGetKnownFolderPath}};
+    let mut path: windows_sys::core::PWSTR = std::ptr::null_mut();
+    unsafe {
+        let status = SHGetKnownFolderPath(&FOLDERID_ProgramFiles, 0, std::ptr::null_mut(), &mut path);
+        let result = (status >= 0 && !path.is_null()).then(|| {
+            let length = (0..).take_while(|&i| *path.add(i) != 0).count();
+            String::from_utf16_lossy(std::slice::from_raw_parts(path, length))
+        });
+        // Required even on failure; null is accepted.
+        CoTaskMemFree(path as *const _);
+        result
+    }
+}
+
+fn normalized(path: &str) -> String { path.trim().replace('/', "\\").to_lowercase() }
+
+#[tauri::command]
+pub fn native_camera_component_state() -> ComponentState {
+    use windows_sys::Win32::System::Registry::{HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE};
+    let path = registry_string(HKEY_LOCAL_MACHINE, SERVER_KEY).filter(|p| !p.trim().is_empty());
+    let registered_by_user = registry_dword(HKEY_CURRENT_USER, USER_KEY, "RegisteredByUser") == Some(1);
+    let path_kind = match path {
+        None => "none",
+        Some(path) => {
+            let protected = program_files()
+                .map(|root| normalized(&format!(r"{root}\MIAO Motion Camera\softcam.dll")))
+                .is_some_and(|expected| normalized(&path) == expected);
+            if protected { "protected" } else { "legacy" }
+        }
+    };
+    ComponentState { registered: path_kind != "none", legacy: path_kind == "legacy", path_kind, registered_by_user }
+}

@@ -7,6 +7,10 @@
 
 static constexpr wchar_t ClassKey[] = L"SOFTWARE\\Classes\\CLSID\\{DA9CE316-89EF-4AD6-A156-459B271DF409}";
 static constexpr wchar_t InstanceKey[] = L"SOFTWARE\\Classes\\CLSID\\{860BB310-5D01-11D0-BD3B-00A0C911CE86}\\Instance\\MIAO Motion Camera";
+// Per-user bookkeeping read by the NSIS hooks. Written only in the token of the user who
+// started the helper: the UAC prompt may elevate a different administrator account.
+static constexpr wchar_t UserKey[] = L"Software\\MIAO Motion\\Camera";
+static constexpr wchar_t ElevatedChildFlag[] = L" --elevated-child";
 static bool administrator() {
     SID_IDENTIFIER_AUTHORITY nt = SECURITY_NT_AUTHORITY;
     PSID sid = nullptr; BOOL member = FALSE;
@@ -18,6 +22,30 @@ static bool administrator() {
 static bool eraseKey(const wchar_t* name) {
     LONG r = RegDeleteTreeW(HKEY_LOCAL_MACHINE, name);
     return r == ERROR_SUCCESS || r == ERROR_FILE_NOT_FOUND || r == ERROR_PATH_NOT_FOUND;
+}
+static void rememberForUser(bool registered) {
+    if (registered) {
+        HKEY key = nullptr;
+        if (RegCreateKeyExW(HKEY_CURRENT_USER, UserKey, 0, nullptr, 0, KEY_SET_VALUE, nullptr, &key, nullptr) == ERROR_SUCCESS) {
+            DWORD one = 1;
+            RegSetValueExW(key, L"RegisteredByUser", 0, REG_DWORD, reinterpret_cast<const BYTE*>(&one), sizeof(one));
+            RegCloseKey(key);
+        }
+    } else {
+        RegDeleteKeyValueW(HKEY_CURRENT_USER, UserKey, L"RegisteredByUser");
+    }
+    // An explicit install or removal supersedes a restore scheduled by the uninstaller.
+    RegDeleteKeyValueW(HKEY_CURRENT_USER, UserKey, L"ReinstallPending");
+}
+static void deleteNowOrAtReboot(const std::wstring& file) {
+    if (DeleteFileW(file.c_str()) || GetLastError() == ERROR_FILE_NOT_FOUND) return;
+    // A receiver still has the DLL loaded. Move it aside so a later registration can
+    // write a fresh softcam.dll that the pending reboot deletion will not remove.
+    std::wstring aside = file + L"." + std::to_wstring(GetTickCount64()) + L".old";
+    if (MoveFileExW(file.c_str(), aside.c_str(), MOVEFILE_REPLACE_EXISTING))
+        MoveFileExW(aside.c_str(), nullptr, MOVEFILE_DELAY_UNTIL_REBOOT);
+    else
+        MoveFileExW(file.c_str(), nullptr, MOVEFILE_DELAY_UNTIL_REBOOT);
 }
 static bool trustedDirectory(const std::wstring& path, PSECURITY_DESCRIPTOR security) {
     SECURITY_ATTRIBUTES attributes{sizeof(SECURITY_ATTRIBUTES), security, FALSE};
@@ -35,19 +63,29 @@ static bool trustedDirectory(const std::wstring& path, PSECURITY_DESCRIPTOR secu
         DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION, nullptr, nullptr, dacl, nullptr) == ERROR_SUCCESS;
 }
 int WINAPI wWinMain(HINSTANCE self, HINSTANCE, PWSTR command, int) {
-    std::wstring action(command);
+    std::wstring action(command ? command : L"");
+    // Set only by this helper when it relaunches itself through UAC.
+    const std::wstring childFlag(ElevatedChildFlag);
+    bool elevatedChild = action.size() > childFlag.size() &&
+        action.compare(action.size() - childFlag.size(), childFlag.size(), childFlag) == 0;
+    if (elevatedChild) action.resize(action.size() - childFlag.size());
     bool remove = action == L"unregister" || action == L"unregister-silent";
     bool silent = action.find(L"-silent") != std::wstring::npos;
     if (!remove && action != L"register" && action != L"register-silent") return ERROR_INVALID_PARAMETER;
     if (!administrator()) {
+        if (elevatedChild) return ERROR_ACCESS_DENIED;
         wchar_t exe[32768];
         if (!GetModuleFileNameW(nullptr, exe, 32768)) return GetLastError();
+        std::wstring parameters = action + childFlag;
         SHELLEXECUTEINFOW info{sizeof(info)};
         info.fMask = SEE_MASK_NOCLOSEPROCESS; info.lpVerb = L"runas"; info.lpFile = exe;
-        info.lpParameters = command; info.nShow = SW_HIDE;
+        info.lpParameters = parameters.c_str(); info.nShow = SW_HIDE;
         if (!ShellExecuteExW(&info)) return GetLastError();
+        if (!info.hProcess) return ERROR_GEN_FAILURE;
         WaitForSingleObject(info.hProcess, INFINITE);
         DWORD code = ERROR_GEN_FAILURE; GetExitCodeProcess(info.hProcess, &code); CloseHandle(info.hProcess);
+        // This process still runs as the user who asked for the change.
+        if (code == ERROR_SUCCESS) rememberForUser(!remove);
         return static_cast<int>(code);
     }
     PWSTR programFiles = nullptr;
@@ -62,9 +100,11 @@ int WINAPI wWinMain(HINSTANCE self, HINSTANCE, PWSTR command, int) {
         if (!instanceRemoved || !classRemoved) result = ERROR_ACCESS_DENIED;
         DWORD flags = GetFileAttributesW(directory.c_str());
         if (flags != INVALID_FILE_ATTRIBUTES && !(flags & FILE_ATTRIBUTE_REPARSE_POINT)) {
-            if (!DeleteFileW(file.c_str()) && GetLastError() != ERROR_FILE_NOT_FOUND)
-                MoveFileExW(file.c_str(), nullptr, MOVEFILE_DELAY_UNTIL_REBOOT);
-            RemoveDirectoryW(directory.c_str());
+            deleteNowOrAtReboot(file);
+            // Never leave the directory behind permanently; an empty directory is
+            // removed at the next restart once any pending file deletion has run.
+            if (!RemoveDirectoryW(directory.c_str()) && GetLastError() != ERROR_FILE_NOT_FOUND)
+                MoveFileExW(directory.c_str(), nullptr, MOVEFILE_DELAY_UNTIL_REBOOT);
         }
     } else {
         PSECURITY_DESCRIPTOR security = nullptr;
@@ -102,5 +142,7 @@ int WINAPI wWinMain(HINSTANCE self, HINSTANCE, PWSTR command, int) {
         result == ERROR_SUCCESS ? (remove ? L"虚拟摄像头已注销。" : L"虚拟摄像头已安装，请重新打开接收软件。")
         : L"操作失败，请关闭正在使用虚拟摄像头的软件后重试。",
         L"喵动虚拟摄像头", result == ERROR_SUCCESS ? MB_OK : MB_ICONERROR);
+    // Started directly by an administrator (no UAC relaunch): this is the user's own hive.
+    if (result == ERROR_SUCCESS && !elevatedChild) rememberForUser(!remove);
     return static_cast<int>(result);
 }
