@@ -33,7 +33,7 @@ try {
   }
   if (-not $cdpReady) { throw 'WebView2 验证连接未就绪' }
   node scripts/check-desktop-camera.mjs
-  if ($LASTEXITCODE -ne 0) { throw '安装版角色画面未到达 DirectShow 接收器' }
+  if ($LASTEXITCODE -ne 0) { throw '安装版端到端验证失败，请查看原始错误和接收端画面' }
   Write-Host '角色收帧通过，开始检查组件权限'
   $camera = Get-ItemPropertyValue 'HKLM:\SOFTWARE\Classes\CLSID\{DA9CE316-89EF-4AD6-A156-459B271DF409}\InprocServer32' '(default)'
   $expected = Join-Path $env:ProgramFiles 'MIAO Motion Camera\softcam.dll'

@@ -49,13 +49,17 @@ try {
   }
   assert.ok(redToBlue > 100, 'Avatar clothing changes must reach the real DirectShow receiver');
   assert.ok(green > 1000, 'Green stage must reach the real DirectShow receiver');
-  await page.locator('#native-camera-toggle').click();
   console.log('Installed app → rendered avatar → Tauri IPC → DirectShow receiver verified.', { redToBlue, green });
+  // WebView2 can stall CDP scrolling after DirectShow captures. Cleanup still
+  // invokes the real button handler, without waiting for viewport actionability.
+  await page.locator('#native-camera-toggle').evaluate(button => button.click());
+  await expect(page.locator('#native-camera-toggle')).toContainText('开始', { timeout: 10_000 });
 } catch (error) {
+  console.error('Installed app verification failed:', error);
   const state = await page.evaluate(() => ({ nativeStatus: document.getElementById('native-camera-status')?.textContent,
-    button: document.getElementById('native-camera-toggle')?.textContent, stage: document.getElementById('stage')?.dataset.renderReady }));
+    button: document.getElementById('native-camera-toggle')?.textContent, stage: document.getElementById('stage')?.dataset.renderReady })).catch(() => null);
   console.error('Installed app diagnostics', state, errors);
-  writeFileSync('test-results/desktop-camera-diagnostics.json', JSON.stringify({ state, errors }, null, 2));
-  await page.screenshot({ path: 'test-results/desktop-camera-failure.png' });
+  writeFileSync('test-results/desktop-camera-diagnostics.json', JSON.stringify({ error: String(error), state, errors }, null, 2));
+  await page.screenshot({ path: 'test-results/desktop-camera-failure.png', timeout: 5000 }).catch(() => {});
   throw error;
 } finally { await browser.close(); }
