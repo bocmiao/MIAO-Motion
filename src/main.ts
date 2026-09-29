@@ -5,6 +5,8 @@ import { setupBodyTracking } from './body-tracking';
 import { configureObs } from './obs';
 import { setupStudioTools } from './studio-tools';
 import { prepareAvatarFrame } from './render-ready';
+import { setupPlatformGuide } from './platform-guide';
+import { setupCatEditor } from './cat-editor';
 import * as THREE from 'three';
 import type { Category, FaceLandmarker, FaceLandmarkerResult } from '@mediapipe/tasks-vision';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
@@ -237,6 +239,8 @@ let thumbnailPendingId = '';
 const clock = new THREE.Clock();
 const bodyTracking = setupBodyTracking(() => currentVrm, () => settings.mirror);
 const studio = setupStudioTools(renderer, () => currentVrm, () => currentModelId, message => showToast(message), () => updateBroadcastStatus());
+setupPlatformGuide();
+const catEditor = setupCatEditor(() => currentVrm, () => currentModelId);
 const nativeCamera = setupNativeCamera(canvas, () => Boolean(currentVrm) && stage.dataset.renderReady === 'true');
 let lastPhoneFrame = 0;
 const phone = setupPhone(packet => {
@@ -549,6 +553,7 @@ const loadVrm = async (file: File, persist = true, storedId = '') => {
 
     bodyTracking.resetPose();
     currentVrm = vrm;
+    catEditor.clear();
     // A failed save must not attach the new avatar's colors to the old library entry.
     currentModelId = '';
     replaced = true;
@@ -594,6 +599,7 @@ const loadVrm = async (file: File, persist = true, storedId = '') => {
       showToast('角色已加载，但浏览器空间不足，刷新后需要重新导入');
     }
     studio.reloadAppearance();
+    await catEditor.load(file, vrm);
     return true;
   } catch (error) {
     if (generation !== loadGeneration) return false;
@@ -872,6 +878,7 @@ const removeCurrentModel = async (deleteRecord = true) => {
     VRMUtils.deepDispose(currentVrm.scene);
   }
   currentVrm = null;
+  catEditor.clear();
   studio.reloadAppearance();
   modelPreparing = false;
   stage.dataset.renderReady = 'false';
@@ -1011,6 +1018,8 @@ const copyObsUrl = async () => {
 };
 
 importButton.addEventListener('click', () => fileInput.click());
+document.getElementById('quick-import')!.addEventListener('click', () => fileInput.click());
+document.getElementById('quick-miao')!.addEventListener('click', () => document.getElementById('load-miao')!.click());
 document.getElementById('load-miao')!.addEventListener('click', async event => {
   const button = event.currentTarget as HTMLButtonElement; button.disabled = true;
   try {

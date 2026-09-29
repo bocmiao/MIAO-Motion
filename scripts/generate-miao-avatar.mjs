@@ -51,19 +51,38 @@ const neck = bone('neck', [0, 0.12, 0], chest);
 const head = bone('head', [0, 0.17, 0], neck);
 shape(hips, '裤子', [0, 0, 0], [0.18, 0.14, 0.13], 1);
 shape(spine, '上衣', [0, 0.035, 0], [0.20, 0.23, 0.14], 1);
-shape(chest, '领口', [0, 0.05, 0.09], [0.115, 0.035, 0.07], 4);
-shape(chest, '圆形徽章', [-0.085, -0.015, 0.139], [0.033, 0.033, 0.012], 4);
+const part = (category, choice, parent, visible = true) => {
+  const id = node(`miao_part_${category}_${choice}`, [0,0,0], parent);
+  nodes[id].scale = visible ? [1,1,1] : [0,0,0]; return id;
+};
+const badge = part('clothes', 'badge', chest), hoodie = part('clothes', 'hoodie', chest, false);
+shape(badge, '领口', [0, 0.05, 0.09], [0.115, 0.035, 0.07], 4);
+shape(badge, '圆形徽章', [-0.085, -0.015, 0.139], [0.033, 0.033, 0.012], 4);
+shape(hoodie, '兜帽', [0,0.09,-0.055], [0.18,0.11,0.13], 1);
+shape(hoodie, '帽绳左', [-0.055,0.012,0.14], [0.009,0.075,0.01], 4);
+shape(hoodie, '帽绳右', [0.055,0.012,0.14], [0.009,0.075,0.01], 4);
 shape(head, '猫咪头部', [0, 0.035, 0], [0.27, 0.23, 0.22], 0);
-shape(head, '左猫耳', [0.18, 0.25, 0], [0.105, 0.13, 0.07], 0, 'cone');
-shape(head, '右猫耳', [-0.18, 0.25, 0], [0.105, 0.13, 0.07], 0, 'cone');
-shape(head, '左内耳', [0.18, 0.25, 0.045], [0.065, 0.085, 0.012], 3, 'cone');
-shape(head, '右内耳', [-0.18, 0.25, 0.045], [0.065, 0.085, 0.012], 3, 'cone');
+const pointed = part('ears', 'pointed', head), round = part('ears', 'round', head, false);
+for (const sign of [-1, 1]) {
+  shape(pointed, `尖耳${sign}`, [sign*0.18,0.25,0], [0.105,0.13,0.07], 0, 'cone');
+  shape(pointed, `尖内耳${sign}`, [sign*0.18,0.25,0.045], [0.065,0.085,0.012], 3, 'cone');
+  shape(round, `圆耳${sign}`, [sign*0.205,0.22,0], [0.09,0.105,0.06], 0);
+  shape(round, `圆内耳${sign}`, [sign*0.205,0.22,0.045], [0.052,0.067,0.012], 3);
+}
+const longTail = part('tail', 'long', hips), shortTail = part('tail', 'short', hips, false);
+shape(longTail, '长尾根', [0.16,-0.025,-0.16], [0.11,0.055,0.13], 0);
+shape(longTail, '长尾尖', [0.255,0.07,-0.22], [0.06,0.16,0.06], 0);
+shape(shortTail, '短尾球', [0.12,-0.005,-0.17], [0.085,0.085,0.10], 0);
+const tuft = part('hair', 'tuft', head); part('hair', 'smooth', head, false);
+shape(tuft, '头顶发簇', [0,0.25,0.095], [0.073,0.071,0.048], 0, 'cone');
 const blink = (x,y,z) => [x, y * 0.08, z];
-const eyeNodes = [];
+const eyeNodes = [], browNodes = [];
 for (const [side, sign] of [['left', 1], ['right', -1]]) {
   const eye = bone(`${side}Eye`, [0.09 * sign, 0.065, 0.196], head);
   eyeNodes.push(shape(eye, `${side}瞳孔`, [0,0,0], [0.029, 0.049, 0.027], 2, 'sphere', [blink]));
   shape(eye, `${side}高光`, [-0.007, 0.02, 0.024], [0.008, 0.009, 0.006], 5);
+  browNodes.push(shape(head, `${side}眉毛`, [0.09*sign,0.135,0.19], [0.048,0.009,0.012], 2, 'sphere',
+    [(x,y,z)=>[x,y+x*sign*0.5,z], (x,y,z)=>[x,y-x*sign*0.5,z]]));
   const upperArm = bone(`${side}UpperArm`, [sign * 0.20, 0.03, 0], chest);
   const lowerArm = bone(`${side}LowerArm`, [sign * 0.20, 0, 0], upperArm);
   const hand = bone(`${side}Hand`, [sign * 0.18, 0, 0], lowerArm);
@@ -83,7 +102,7 @@ const bind = (node,index) => ({ node,index,weight:1 });
 const preset = {
   blinkLeft: { morphTargetBinds:[bind(eyeNodes[0],0)] }, blinkRight:{ morphTargetBinds:[bind(eyeNodes[1],0)] },
   aa:{ morphTargetBinds:[bind(mouth,0)] }, oh:{ morphTargetBinds:[bind(mouth,0)] }, happy:{ morphTargetBinds:[bind(mouth,1)] },
-  sad:{ morphTargetBinds:[bind(mouth,2)] }, angry:{ morphTargetBinds:[bind(mouth,2)] }, relaxed:{ morphTargetBinds:eyeNodes.map(n=>({...bind(n,0),weight:0.5})) }, surprised:{ morphTargetBinds:[bind(mouth,0)] },
+  sad:{ morphTargetBinds:[bind(mouth,2),...browNodes.map(n=>bind(n,1))] }, angry:{ morphTargetBinds:browNodes.map(n=>bind(n,0)) }, relaxed:{ morphTargetBinds:eyeNodes.map(n=>({...bind(n,0),weight:0.5})) }, surprised:{ morphTargetBinds:[bind(mouth,0)] },
 };
 const range = { inputMaxValue:90,outputScale:12 };
 const gltf = { asset:{version:'2.0',generator:'MIAO Motion original procedural mascot'},scene:0,scenes:[{nodes:[hips]}], nodes, meshes, materials, bufferViews:views, accessors, buffers:[{byteLength:length}],extensionsUsed:['VRMC_vrm'],extensions:{VRMC_vrm:{specVersion:'1.0',meta:{name:'喵小动 · 原创猫咪',version:'1',authors:['MIAO Motion contributors'],copyrightInformation:'Original procedural geometry; source in scripts/generate-miao-avatar.mjs',licenseUrl:'https://vrm.dev/licenses/1.0/',avatarPermission:'everyone',commercialUsage:'corporation',creditNotation:'unnecessary',allowRedistribution:true,modification:'allowModificationRedistribution',allowExcessivelyViolentUsage:false,allowExcessivelySexualUsage:false,allowPoliticalOrReligiousUsage:false,allowAntisocialOrHateUsage:false},humanoid:{humanBones:bones},expressions:{preset},lookAt:{type:'bone',offsetFromHeadBone:[0,0.065,0.2],rangeMapHorizontalInner:range,rangeMapHorizontalOuter:range,rangeMapVerticalDown:range,rangeMapVerticalUp:range}}}};

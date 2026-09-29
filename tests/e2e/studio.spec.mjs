@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 const fixture = fileURLToPath(new URL('../fixtures/minimal-avatar.vrm', import.meta.url));
 const open = async page => { await page.goto('/'); await page.locator('#onboarding-later').click(); };
 
@@ -35,9 +36,76 @@ test('model readiness waits for GPU completion and exposes preparation feedback'
   await expect(page.locator('#model-status')).toContainText('正在准备画面');
   await expect(page.locator('#broadcast-toggle')).toBeDisabled();
   await expect(page.locator('#stage')).toHaveAttribute('data-render-ready', 'false');
+  // Simulate a minute minimized while the GPU fence is still pending.
+  await page.evaluate(() => {
+    const original = performance.now.bind(performance);
+    Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
+    document.dispatchEvent(new Event('visibilitychange'));
+    performance.now = () => original() + 65_000;
+  });
+  await page.waitForTimeout(100);
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'hidden', { configurable: true, get: () => false });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  await expect(page.locator('#model-status')).toContainText('正在准备画面');
   await page.evaluate(() => { window.__releaseGPU = true; });
   await expect(page.locator('#model-status')).toContainText('模型可用');
   await expect(page.locator('#stage')).toHaveAttribute('data-render-ready', 'true');
+});
+
+test('OBS partial failure rolls back only its own scene and input', async ({ page }) => {
+  const requests = [];
+  await page.routeWebSocket('ws://127.0.0.1:4455', socket => {
+    socket.send(JSON.stringify({ op: 0, d: { rpcVersion: 1 } }));
+    socket.onMessage(raw => {
+      const { op, d } = JSON.parse(raw);
+      if (op === 1) { socket.send(JSON.stringify({op:2,d:{}})); return; }
+      requests.push(d);
+      socket.send(JSON.stringify({op:7,d:{requestId:d.requestId,requestStatus:{result:true},responseData: d.requestType==='GetInputPropertiesListPropertyItems' ? {propertyItems:[]} : {}}}));
+    });
+  });
+  await open(page);
+  await page.locator('#model-file').setInputFiles(fixture);
+  await expect(page.locator('#model-status')).toContainText('模型可用');
+  await page.getByText('自动配置 OBS（Windows）', {exact:true}).click();
+  await page.locator('#setup-obs').click();
+  await expect(page.locator('#obs-setup-status')).toContainText('本次新增内容已清理');
+  expect(requests.map(r=>r.requestType)).toEqual(['CreateScene','CreateInput','GetInputPropertiesListPropertyItems','RemoveInput','RemoveScene']);
+  expect(requests[3].requestData.inputName).toBe(requests[1].requestData.inputName);
+  expect(requests[4].requestData.sceneName).toBe(requests[0].requestData.sceneName);
+});
+
+test('home choices and platform guide lead to an exportable customized mascot', async ({ page }) => {
+  await open(page);
+  await expect(page.locator('#quick-import')).toBeVisible();
+  await expect(page.getByRole('link',{name:'教我做角色',exact:true})).toHaveAttribute('href','./create-character.html');
+  await page.locator('#quick-miao').click();
+  await expect(page.locator('#stage')).toHaveAttribute('data-render-ready','true',{timeout:60000});
+  await page.locator('.studio-settings > summary').click();
+  await expect(page.locator('#cat-editor')).toBeEnabled();
+  await page.locator('#cat-name').fill('奶茶猫');
+  for(const [part,value] of [['ears','round'],['tail','short'],['hair','smooth'],['clothes','hoodie']]) await page.locator('#cat-'+part).selectOption(value);
+  await page.locator('#avatar-material').selectOption({label:'深青色衣服'});
+  await page.locator('#avatar-color').fill('#123456');
+  const downloadPromise=page.waitForEvent('download');
+  await page.locator('#cat-export').click();
+  const download=await downloadPromise;
+  expect(download.suggestedFilename()).toBe('奶茶猫.vrm');
+  await page.locator('#model-file').setInputFiles({ name: download.suggestedFilename(), mimeType: 'model/vrm', buffer: await readFile(await download.path()) });
+  await expect(page.locator('#model-status')).toContainText('兼容性 4/4');
+  await expect(page.locator('#cat-name')).toHaveValue('奶茶猫');
+  await expect(page.locator('#cat-ears')).toHaveValue('round');
+  await page.locator('#avatar-material').selectOption({label:'深青色衣服'});
+  await expect(page.locator('#avatar-color')).toHaveValue('#123456');
+  await page.locator('#live-platform').selectOption('xiaohongshu');
+  await expect(page.locator('#platform-steps')).toContainText('MIAO Motion Camera');
+  await expect(page.locator('#platform-steps')).toContainText('小红书');
+  await page.screenshot({path:test.info().outputPath('customized-cat.png'),fullPage:true});
+  await page.evaluate(() => window.scrollTo(0,0));
+  await page.screenshot({path:test.info().outputPath('home-desktop.png')});
+  await page.setViewportSize({width:390,height:844});
+  await page.screenshot({path:test.info().outputPath('home-mobile.png')});
 });
 
 test('material colors persist per model and reset; microphone closes every track', async ({ page }) => {

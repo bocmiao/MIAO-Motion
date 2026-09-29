@@ -25,6 +25,11 @@
         <p class="eyebrow">第一代可运行版本 · v%MIAO_VERSION%</p>
         <h1 id="welcome-title">让你的角色动起来。</h1>
         <p>准备角色 → 开启摄像头 → 校准正面 → 接入直播。无需注册，不上传素材。</p>
+        <div class="quick-start" aria-label="选择角色起点">
+          <button id="quick-miao" class="primary-button" type="button">用喵小动</button>
+          <button id="quick-import" class="soft-button" type="button">导入我的角色</button>
+          <a class="soft-button" href="./create-character.html" target="_blank" rel="noreferrer">教我做角色</a>
+        </div>
       </section>
 
       <section class="workspace">
@@ -69,6 +74,15 @@
 <label>角色部位 <select id="avatar-material" disabled></select></label>
 <label>颜色 <input id="avatar-color" type="color" value="#ffffff" disabled></label>
 <button id="avatar-color-reset" type="button" class="soft-button">恢复原色</button>
+<fieldset id="cat-editor" disabled><legend>喵小动 · 换部件与导出</legend>
+<p>仅适用于新版喵小动。其他角色可换色，也可回建模软件修改。</p>
+<label>名字 <input id="cat-name" type="text" maxlength="40" value="喵小动"></label>
+<label>耳朵 <select id="cat-ears"><option value="pointed">尖耳朵</option><option value="round">圆耳朵</option></select></label>
+<label>尾巴 <select id="cat-tail"><option value="long">长尾巴</option><option value="short">短尾巴</option></select></label>
+<label>发型 <select id="cat-hair"><option value="tuft">小发簇</option><option value="smooth">清爽无发簇</option></select></label>
+<label>衣服 <select id="cat-clothes"><option value="badge">徽章上衣</option><option value="hoodie">连帽上衣</option></select></label>
+<button id="cat-export" class="soft-button" type="button">导出我的角色 VRM</button>
+<p id="cat-editor-status" role="status">加载新版喵小动后可使用；导出保留作者与许可。</p></fieldset>
 <label>表情 <select id="expression-preset"><option value="">自然 · 0</option></select></label>
 <small>本窗口内按 1–5 切换表情，0 恢复自然。缺少的表情会禁用。</small>
 </section><section class="motion-settings"><strong>语音嘴型</strong>
@@ -195,8 +209,10 @@
           </details>
 
           <section class="broadcast-controls">
-<details><summary>原生虚拟摄像头（Windows）</summary><p>安装组件后，在支持 64 位 DirectShow 的会议或直播软件中选择 MIAO Motion Camera。安装与卸载会请求 Windows 管理员权限。</p><button id="native-camera-install" type="button" class="soft-button">安装摄像头组件</button><button id="native-camera-toggle" type="button" class="soft-button">开始虚拟摄像头输出</button><button id="native-camera-remove" type="button" class="soft-button">卸载摄像头组件</button><p id="native-camera-status" role="status">尚未输出。卸载喵动前请先卸载摄像头组件。</p></details>
-<details><summary>手机面捕（iFacialMocap）</summary><label>手机局域网 IPv4 <input id="phone-ip" type="text" placeholder="例如 192.168.1.20" inputmode="decimal"></label><button id="phone-toggle" type="button" class="soft-button">连接手机面捕</button><p id="phone-status" role="status">使用安装版，将手机和电脑连接同一局域网。</p></details>
+<label>我要接入 <select id="live-platform"><option value="obs">OBS / 录屏</option><option value="bilibili">B站直播姬</option><option value="douyin">抖音直播伴侣</option><option value="kuaishou">快手直播伴侣</option><option value="xiaohongshu">小红书直播</option><option value="meeting">腾讯会议 / 钉钉等会议软件</option></select></label>
+<ol id="platform-steps" aria-live="polite"></ol><a href="./platforms.html" target="_blank" rel="noreferrer">查看平台接入步骤与限制</a>
+<details><summary>原生虚拟摄像头（Windows）</summary><p>实验功能，接收软件兼容性仍待真机确认。安装组件后，在支持 64 位 DirectShow 的会议或直播软件中选择 MIAO Motion Camera。安装与卸载会请求 Windows 管理员权限。</p><button id="native-camera-install" type="button" class="soft-button">安装摄像头组件</button><button id="native-camera-toggle" type="button" class="soft-button">开始虚拟摄像头输出</button><button id="native-camera-remove" type="button" class="soft-button">卸载摄像头组件</button><p id="native-camera-status" role="status">尚未输出。卸载喵动时会请求权限并自动注销摄像头。</p></details>
+<details><summary>手机面捕（iFacialMocap）</summary><label>手机局域网 IPv4 <input id="phone-ip" type="text" placeholder="例如 192.168.1.20" inputmode="decimal"></label><button id="phone-toggle" type="button" class="soft-button">连接手机面捕</button><p id="phone-status" role="status">实验功能：使用安装版，将手机和电脑连接同一局域网。</p></details>
 <details><summary>自动配置 OBS（Windows）</summary><p>在 OBS 的“工具 → WebSocket 服务器设置”启用服务器，使用端口 4455。只创建新场景，不改变当前直播。</p><label>OBS 服务器密码 <input id="obs-password" type="password" autocomplete="off"></label><button id="setup-obs" type="button" class="soft-button">创建绿幕场景</button><p id="obs-setup-status" role="status"></p></details>
             <button id="background-toggle" class="soft-button" type="button">背景：影棚</button>
             <button id="broadcast-toggle" class="soft-button" type="button" disabled>进入直播画面</button>
@@ -279,7 +295,7 @@
             </details>
             <p><a href="./create-character.html" target="_blank" rel="noreferrer">教我一步步做自己的角色</a></p>
             <button id="onboarding-skip" class="soft-button" type="button">先跳过角色，试试摄像头</button>
-            <button id="load-miao" class="primary-button" type="button">使用原创猫咪 · 喵小动</button><p>程序生成的原创猫咪，可在主界面换色、切换表情。角色许可见<a href="./miao-license.html" target="_blank" rel="noreferrer">使用说明</a>。</p><button id="load-example" class="soft-button" type="button" disabled>正在准备本地示例入口…</button>
+            <button id="load-miao" class="primary-button" type="button">使用原创猫咪 · 喵小动</button><p>程序生成的原创猫咪，可换色、换部件、起名、导出与切换表情。角色许可见<a href="./miao-license.html" target="_blank" rel="noreferrer">使用说明</a>。</p><button id="load-example" class="soft-button" type="button" disabled>正在准备本地示例入口…</button>
             <p>示例由 pixiv Inc. 提供，并非喵动原创。<a href="./example-license.html" target="_blank" rel="noreferrer">查看独立使用许可</a>；无需联网下载，也不会自动开启摄像头。</p>
             <p class="onboarding-tip">模型检查会告诉你缺少哪些骨骼或表情；警告不一定影响其他动作。</p>
           </section>

@@ -38,4 +38,5 @@ sections.push(await readFile(resolve(root, 'native/softcam/LICENSE-Microsoft.txt
 await writeFile(resolve(output, 'THIRD_PARTY_LICENSES.txt'), `${sections.join('\n')}\n`);
 await cp(resolve(root, 'LICENSE'), resolve(output, 'LICENSE-MPL-2.0.txt'));
 await cp(resolve(root, 'THIRD_PARTY_NOTICES.md'), resolve(output, 'THIRD_PARTY_NOTICES.md'));
+await cp(resolve(root, 'native/licenses/RUST_THIRD_PARTY_LICENSES.txt'), resolve(output, 'RUST_THIRD_PARTY_LICENSES.txt'));
 console.log(`Prepared ${packages.length} runtime license entries in ${output}`);

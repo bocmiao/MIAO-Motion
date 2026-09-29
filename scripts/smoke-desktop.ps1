@@ -1,4 +1,5 @@
 ﻿$ErrorActionPreference = 'Stop'
+if ($env:GITHUB_ACTIONS -ne 'true') { throw '完整安装链路验证仅允许在隔离的 GitHub Actions Windows runner 执行' }
 $installer = Get-ChildItem src-tauri/target/release/bundle/nsis/*-setup.exe | Select-Object -First 1
 $installDir = Join-Path $env:RUNNER_TEMP 'MiaoDesktopSmoke'
 $install = Start-Process $installer.FullName -ArgumentList @('/S', "/D=$installDir") -PassThru -Wait
@@ -10,6 +11,11 @@ $bytes = [IO.File]::ReadAllBytes($exe.FullName)
 $pe = [BitConverter]::ToInt32($bytes, 0x3c)
 if ([BitConverter]::ToUInt16($bytes, $pe + 24 + 68) -ne 2) { throw '主程序仍使用控制台子系统' }
 $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = '--remote-debugging-port=9222'
+# Elevated WebView2 150+ ignores environment overrides. Apply a scoped debugging
+# policy only inside disposable GitHub runners, never on a developer/user machine.
+$debugPolicy = 'HKLM:\SOFTWARE\Policies\Microsoft\Edge\WebView2\AdditionalBrowserArguments'
+New-Item -Path $debugPolicy -Force | Out-Null
+New-ItemProperty -Path $debugPolicy -Name 'miao-motion.exe' -Value '--remote-debugging-port=9222' -PropertyType String -Force | Out-Null
 $app = Start-Process $exe.FullName -PassThru
 try {
   $deadline = [DateTime]::UtcNow.AddSeconds(30)
@@ -39,7 +45,11 @@ try {
           (([int]$rule.FileSystemRights -band 0xD0116) -ne 0)) { throw "普通用户可修改摄像头组件：$rule" }
     }
   }
-} finally { if (-not $app.HasExited) { Stop-Process -Id $app.Id } }
+} finally {
+  if (-not $app.HasExited) { Stop-Process -Id $app.Id }
+  Remove-ItemProperty -Path $debugPolicy -Name 'miao-motion.exe' -ErrorAction SilentlyContinue
+  Remove-Item Env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS -ErrorAction SilentlyContinue
+}
 $uninstaller = Get-ChildItem $installDir -Filter '*uninstall*.exe' | Select-Object -First 1
 if (-not $uninstaller) { throw '找不到卸载器' }
 $remove = Start-Process $uninstaller.FullName -ArgumentList '/S' -PassThru -Wait

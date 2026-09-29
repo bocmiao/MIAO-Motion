@@ -3,7 +3,7 @@ import { invoke, isTauri } from '@tauri-apps/api/core';
 export function setupNativeCamera(canvas: HTMLCanvasElement, ready: () => boolean) {
   const button = document.getElementById('native-camera-toggle') as HTMLButtonElement;
   const status = document.getElementById('native-camera-status')!;
-  let active = false, busy = false, last = 0, generation = 0;
+  let active = false, busy = false, installing = false, last = 0, generation = 0;
   const output = document.createElement('canvas'); output.width = 640; output.height = 360;
   const context = output.getContext('2d', { willReadFrequently: true })!;
   const pixels = new Uint8Array(640 * 360 * 3);
@@ -12,11 +12,17 @@ export function setupNativeCamera(canvas: HTMLCanvasElement, ready: () => boolea
     const control = document.getElementById(id) as HTMLButtonElement;
     control.disabled = !isTauri();
     control.addEventListener('click', async () => {
+      if (installing) return;
+      installing = true;
       if (remove) stop();
-      control.disabled = true; status.textContent = '等待 Windows 权限确认…画面可以继续使用。';
+      for (const id of ['native-camera-install', 'native-camera-remove', 'native-camera-toggle']) (document.getElementById(id) as HTMLButtonElement).disabled = true;
+      status.textContent = '等待 Windows 权限确认…画面可以继续使用。';
       try { await invoke('native_camera_install', { remove }); status.textContent = remove ? '虚拟摄像头已注销' : '虚拟摄像头已安装，请重新打开接收软件'; }
       catch (error) { status.textContent = String(error); }
-      finally { control.disabled = false; }
+      finally {
+        installing = false;
+        for (const id of ['native-camera-install', 'native-camera-remove', 'native-camera-toggle']) (document.getElementById(id) as HTMLButtonElement).disabled = false;
+      }
     });
   }
   button.disabled = !isTauri();

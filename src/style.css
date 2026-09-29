@@ -304,11 +304,23 @@ html:has(body.broadcast-mode) { background: transparent; }
 
 @keyframes pulse { 50% { opacity: 0.42; } }
 
+.quick-start { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+.quick-start a { display: inline-flex; align-items: center; text-decoration: none; }
+#cat-editor { margin: 12px 0 0; padding: 12px; border: 1px solid #d5d0c6; border-radius: 12px; min-width: 0; }
+#cat-editor:disabled { opacity: 0.65; }
+#cat-editor legend { font-weight: 650; }
+#cat-editor label { display: grid; grid-template-columns: 48px minmax(0, 1fr); align-items: center; gap: 8px; margin: 10px 0; }
+#cat-editor input, #cat-editor select, #live-platform { width: 100%; min-width: 0; padding: 8px; border: 1px solid #d9d7d0; border-radius: 8px; font: inherit; }
+#cat-editor input[type="text"] { min-width: 0; max-width: 100%; }
+.broadcast-controls > label, .broadcast-controls > ol, .broadcast-controls > a { grid-column: 1 / -1; }
+.broadcast-controls > label { display: grid; gap: 8px; font-weight: 650; }
+#platform-steps { margin: 6px 0; padding-left: 22px; line-height: 1.65; font-size: 13px; }
+
 @media (max-width: 900px) {
   .workspace { grid-template-columns: 1fr; }
   .control-panel { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .tracking-card, :is(.advanced-settings, .studio-settings), .library-settings, .motion-settings, .profile-settings, .model-doctor, .preflight-check, .data-tools, .broadcast-controls { min-height: 120px; }
-  .stage-card { min-height: 550px; }
+  .stage-card { min-height: 550px; order: -1; }
 }
 
 @media (max-width: 620px) {
