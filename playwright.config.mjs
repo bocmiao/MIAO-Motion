@@ -5,6 +5,9 @@ export default defineConfig({
   fullyParallel: true,
   // SwiftShader and real vision engines compete for CPU even on many-core hosts.
   workers: 2,
+  // Rendering and local inference on shared CPU-only runners exceed UI-only budgets.
+  expect: { timeout: 15_000 },
+  timeout: 90_000,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? 'github' : 'list',

@@ -70,6 +70,7 @@ for (const delayed of ['loader', 'storage']) {
 }
 
 test('deleting the old model cannot clear a newer import after delayed completion', async ({ page }) => {
+  test.setTimeout(90_000);
   await page.goto('/'); await page.locator('#onboarding-later').click();
   await page.locator('#model-file').setInputFiles(fixture);
   await expect(page.locator('#import-model')).toBeEnabled();
@@ -92,6 +93,7 @@ test('deleting the old model cannot clear a newer import after delayed completio
   await expect.poll(() => page.evaluate(() => Boolean(window.__deleting))).toBe(true);
   await page.locator('#model-file').setInputFiles({ name: 'newest.vrm', mimeType: 'model/vrm', buffer: await readFile(fixture) });
   await expect(page.locator('#model-name')).toHaveText('newest');
+  await expect(page.locator('#stage')).toHaveAttribute('data-render-ready', 'true', { timeout: 60_000 });
   await expect(page.locator('#import-model')).toBeEnabled();
   await page.waitForTimeout(1200);
   await expect(page.locator('#model-name')).toHaveText('newest');
