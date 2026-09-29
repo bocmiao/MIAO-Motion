@@ -35,7 +35,15 @@ export async function checkDesktopIO(page) {
   await page.evaluate(() => { for (const dialog of document.querySelectorAll('dialog[open]')) dialog.close(); });
   await page.locator('#stage').scrollIntoViewIfNeeded();
   const box = await page.locator('#stage').boundingBox();
-  await helper('scripts/desktop-drop.ps1', ['-File', resolve('tests/fixtures/minimal-avatar.vrm'), '-X', String(Math.round(box.x + box.width / 2)), '-Y', String(Math.round(box.y + box.height / 2))]);
+  await page.evaluate(() => {
+    window.__nativeDropEvents = [];
+    for (const type of ['dragenter', 'dragover', 'drop']) document.addEventListener(type, event => {
+      if (window.__nativeDropEvents.length < 30) window.__nativeDropEvents.push({ type, trusted: event.isTrusted, types: [...event.dataTransfer.types], files: event.dataTransfer.files.length });
+    }, true);
+  });
+  try {
+    await helper('scripts/desktop-drop.ps1', ['-File', resolve('tests/fixtures/minimal-avatar.vrm'), '-X', String(Math.round(box.x + box.width / 2)), '-Y', String(Math.round(box.y + box.height / 2))]);
+  } finally { console.log('Installed native drop events', await page.evaluate(() => window.__nativeDropEvents)); }
   await expect(page.locator('#model-name')).toHaveText('minimal-avatar');
   await expect(page.locator('#stage')).toHaveAttribute('data-render-ready', 'true');
   await page.locator('#quick-miao').evaluate(button => button.click());

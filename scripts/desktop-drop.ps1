@@ -30,12 +30,26 @@ public static class NativeFileDrop {
       // DoDragDrop owns the native OLE message loop; no visible source window is needed.
       // The actual target still receives CF_HDROP through Windows, never a DOM event.
       var data = new DataObject(DataFormats.FileDrop, new string[] { path });
+      int released = 0;
+      // A programmatic OLE source has no MouseDown message in its own queue.
+      // Keep the native loop active until our real mouse release instead of treating
+      // that initially empty queue as an immediate drop.
+      source.QueryContinueDrag += (sender, args) => {
+        args.Action = args.EscapePressed ? DragAction.Cancel :
+          Interlocked.CompareExchange(ref released, 0, 0) == 1 ? DragAction.Drop : DragAction.Continue;
+      };
+      DragDropEffects previous = (DragDropEffects)(-1);
+      source.GiveFeedback += (sender, args) => {
+        if (previous != args.Effect) Console.WriteLine("Native OLE feedback: " + args.Effect);
+        previous = args.Effect;
+      };
       SetCursorPos(start.X, start.Y);
       mouse_event(2,0,0,0,UIntPtr.Zero);
       var mover = new Thread(() => {
         Thread.Sleep(500);
         for(int i=1;i<=20;i++) { SetCursorPos(start.X+(point.X-start.X)*i/20,start.Y+(point.Y-start.Y)*i/20); Thread.Sleep(40); }
         Thread.Sleep(1000);
+        Interlocked.Exchange(ref released, 1);
         mouse_event(4,0,0,0,UIntPtr.Zero);
       }) { IsBackground = true };
       mover.Start();
