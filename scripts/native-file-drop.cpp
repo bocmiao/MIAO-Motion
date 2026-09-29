@@ -64,9 +64,11 @@ int wmain(int argc, wchar_t** argv) {
         ComPtr<FileDropSource> source;
         source.Attach(new FileDropSource());
         SetCursorPos(start.x, start.y);
-        mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0);
         std::thread mover([&] {
+          // Let OLE capture input before pressing: clicking the WebView first
+          // starts its own pointer/OrbitControls capture and can block DragEnter.
           Sleep(500);
+          mouse_event(MOUSEEVENTF_LEFTDOWN, 0, 0, 0, 0);
           for (int i = 1; i <= 20; ++i) {
             SetCursorPos(start.x + (target.x - start.x) * i / 20, start.y + (target.y - start.y) * i / 20);
             Sleep(40);
