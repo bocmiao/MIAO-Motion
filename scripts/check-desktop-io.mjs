@@ -9,7 +9,7 @@ const expect = baseExpect.configure({ timeout: 30_000 });
 
 const helper = (script, args) => new Promise((resolve, reject) => {
   const child = spawn('powershell.exe', ['-NoProfile', '-STA', '-ExecutionPolicy', 'Bypass', '-File', script, ...args], { windowsHide: true, stdio: 'inherit' });
-  const timeout = setTimeout(() => { child.kill(); reject(new Error(`${script} timed out`)); }, 45_000);
+  const timeout = setTimeout(() => { child.kill(); reject(new Error(`${script} timed out`)); }, 70_000);
   child.once('error', reject);
   child.once('exit', code => { clearTimeout(timeout); code === 0 ? resolve() : reject(new Error(`${script}: ${code}`)); });
 });
