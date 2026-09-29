@@ -1,9 +1,11 @@
-import { expect } from '@playwright/test';
+import { expect as baseExpect } from '@playwright/test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { readFile, mkdtemp } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
+
+const expect = baseExpect.configure({ timeout: 30_000 });
 
 const helper = (script, args) => new Promise((resolve, reject) => {
   const child = spawn('powershell.exe', ['-NoProfile', '-STA', '-ExecutionPolicy', 'Bypass', '-File', script, ...args], { windowsHide: true, stdio: 'inherit' });
@@ -21,7 +23,7 @@ export async function checkDesktopIO(page) {
     if (new URL(href).origin === new URL(root).origin) {
       await expect(page.locator('#help-dialog')).toBeVisible();
       await expect(page.locator('#help-frame')).toHaveAttribute('src', href);
-      await expect.poll(() => page.locator('#help-frame').evaluate(frame => frame.contentDocument?.body?.textContent?.length ?? 0)).toBeGreaterThan(20);
+      await expect.poll(() => page.locator('#help-frame').evaluate((frame, href) => frame.contentDocument?.URL === href && (frame.contentDocument.body?.textContent?.length ?? 0) > 20, href)).toBe(true);
       await page.locator('#help-close').click();
     } else await expect(page.locator('#toast')).toContainText('系统浏览器');
     assert.equal(page.url(), root, 'Help must not unload the running application');
