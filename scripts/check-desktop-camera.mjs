@@ -34,6 +34,7 @@ try {
   await expect(page.locator('#native-camera-status')).toContainText('正在输出', { timeout: 15_000 });
   const frames = [];
   for (const [name, color] of [['red', '#ff0000'], ['blue', '#0000ff']]) {
+    await page.bringToFront();
     await page.locator('#avatar-color').fill(color);
     // Wait for a changed rendered frame before the receiver opens.
     await page.waitForTimeout(1000);
@@ -50,10 +51,12 @@ try {
   assert.ok(redToBlue > 100, 'Avatar clothing changes must reach the real DirectShow receiver');
   assert.ok(green > 1000, 'Green stage must reach the real DirectShow receiver');
   console.log('Installed app → rendered avatar → Tauri IPC → DirectShow receiver verified.', { redToBlue, green });
-  // WebView2 can stall CDP scrolling after DirectShow captures. Cleanup still
-  // invokes the real button handler, without waiting for viewport actionability.
-  await page.locator('#native-camera-toggle').evaluate(button => button.click());
+  await page.bringToFront();
+  // Invoke the real UI handler directly, without animation-frame selector
+  // polling in a WebView2 window that the receiver may have occluded.
+  await page.evaluate(() => document.getElementById('native-camera-toggle').click());
   await expect(page.locator('#native-camera-toggle')).toContainText('开始', { timeout: 10_000 });
+  console.log('Native output stop handler completed.');
 } catch (error) {
   console.error('Installed app verification failed:', error);
   const state = await page.evaluate(() => ({ nativeStatus: document.getElementById('native-camera-status')?.textContent,

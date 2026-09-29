@@ -11,12 +11,15 @@ if (-not $exe) { throw '安装后找不到主程序' }
 $bytes = [IO.File]::ReadAllBytes($exe.FullName)
 $pe = [BitConverter]::ToInt32($bytes, 0x3c)
 if ([BitConverter]::ToUInt16($bytes, $pe + 24 + 68) -ne 2) { throw '主程序仍使用控制台子系统' }
-$env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = '--remote-debugging-port=9222'
+# Match Playwright's foreground test environment: receiver processes must not
+# cause WebView2's native-window occlusion to suspend DOM polling in CI.
+$browserArguments = '--remote-debugging-port=9222 --disable-background-timer-throttling --disable-backgrounding-occluded-windows --disable-renderer-backgrounding --disable-features=CalculateNativeWinOcclusion'
+$env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = $browserArguments
 # Elevated WebView2 150+ ignores environment overrides. Apply a scoped debugging
 # policy only inside disposable GitHub runners, never on a developer/user machine.
 $debugPolicy = 'HKLM:\SOFTWARE\Policies\Microsoft\Edge\WebView2\AdditionalBrowserArguments'
 New-Item -Path $debugPolicy -Force | Out-Null
-New-ItemProperty -Path $debugPolicy -Name 'miao-motion.exe' -Value '--remote-debugging-port=9222' -PropertyType String -Force | Out-Null
+New-ItemProperty -Path $debugPolicy -Name 'miao-motion.exe' -Value $browserArguments -PropertyType String -Force | Out-Null
 $app = Start-Process $exe.FullName -PassThru
 try {
   $deadline = [DateTime]::UtcNow.AddSeconds(30)
