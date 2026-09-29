@@ -1,4 +1,4 @@
-﻿$ErrorActionPreference = 'Stop'
+$ErrorActionPreference = 'Stop'
 if ($env:GITHUB_ACTIONS -ne 'true') { throw '完整安装链路验证仅允许在隔离的 GitHub Actions Windows runner 执行' }
 $installer = Get-ChildItem src-tauri/target/release/bundle/nsis/*-setup.exe | Select-Object -First 1
 $installDir = Join-Path $env:RUNNER_TEMP 'MiaoDesktopSmoke'
@@ -15,7 +15,7 @@ if ([BitConverter]::ToUInt16($bytes, $pe + 24 + 68) -ne 2) { throw '主程序仍
 # cause WebView2's native-window occlusion to suspend DOM polling in CI.
 # Hosted runners have no physical GPU. Exercise the installed WebView2 with a deterministic
 # software renderer, including actual native dialogs/OLE/IPC; production GPU settings are unchanged.
-$browserArguments = '--remote-debugging-port=9222 --use-angle=swiftshader --enable-unsafe-swiftshader --disable-background-timer-throttling --disable-backgrounding-occluded-windows --disable-renderer-backgrounding --disable-features=CalculateNativeWinOcclusion'
+$browserArguments = '--remote-debugging-port=9222 --use-angle=swiftshader --enable-unsafe-swiftshader --disable-gpu-watchdog --disable-background-timer-throttling --disable-backgrounding-occluded-windows --disable-renderer-backgrounding --disable-features=CalculateNativeWinOcclusion'
 $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = $browserArguments
 # Elevated WebView2 150+ ignores environment overrides. Apply a scoped debugging
 # policy only inside disposable GitHub runners, never on a developer/user machine.

@@ -31,7 +31,7 @@ export async function checkDesktopIO(page) {
   assert.equal(await page.evaluate(async () => {
     try { await window.__TAURI_INTERNALS__.invoke('open_external', { url: 'https://example.com/untrusted' }); return false; } catch { return true; }
   }), true, 'Rust must reject a non-allowlisted URL');
-  await page.locator('#quick-miao').evaluate(button => button.click());
+  await expect(page.locator('#load-miao')).toBeEnabled();
   await expect(page.locator('#cat-editor')).toBeEnabled();
   const directory = await mkdtemp(join(tmpdir(), 'miao-exports-'));
   for (const [button, name] of [['cat-export', 'cat.vrm'], ['export-settings', 'settings.json'], ['export-diagnostics', 'diagnostics.json']]) {
@@ -63,6 +63,7 @@ export async function checkDesktopIO(page) {
   await expect(page.locator('#model-name')).toHaveText('minimal-avatar');
   await expect(page.locator('#stage')).toHaveAttribute('data-render-ready', 'true');
   await page.locator('#quick-miao').evaluate(button => button.click());
+  await expect(page.locator('#load-miao')).toBeEnabled();
   await expect(page.locator('#cat-editor')).toBeEnabled();
   await page.screenshot({ path: 'test-results/desktop-camera-io.png' });
   console.log('Installed WebView2: every help link, external allowlist, native OLE drag, three system Save As dialogs and cancellation passed.');

@@ -19,6 +19,7 @@ public static class NativeFileDrop {
   [DllImport("user32.dll")] static extern bool SetCursorPos(int x, int y);
   [DllImport("user32.dll")] static extern void mouse_event(uint flags, uint dx, uint dy, uint data, UIntPtr info);
   public static void Run(string path, int x, int y) {
+    if (Application.OleRequired() != ApartmentState.STA) throw new Exception("Native drag requires an OLE STA thread");
     var app = Process.GetProcessesByName("miao-motion")[0];
     ShowWindow(app.MainWindowHandle, 9);
     var point = new Point { X = x, Y = y };

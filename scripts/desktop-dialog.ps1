@@ -9,7 +9,11 @@ do {
   $dialog = [Windows.Automation.AutomationElement]::RootElement.FindFirst([Windows.Automation.TreeScope]::Children, $condition)
   if (-not $dialog) { Start-Sleep -Milliseconds 200 }
 } while (-not $dialog -and [DateTime]::UtcNow -lt $deadline)
-if (-not $dialog) { throw '没有出现系统另存为窗口' }
+if (-not $dialog) {
+  $windows = [Windows.Automation.AutomationElement]::RootElement.FindAll([Windows.Automation.TreeScope]::Children, [Windows.Automation.Condition]::TrueCondition)
+  foreach ($window in $windows) { Write-Host "Native window: $($window.Current.Name) / PID $($window.Current.ProcessId)" }
+  throw '没有出现系统另存为窗口'
+}
 if ($Cancel) {
   $dialog.GetCurrentPattern([Windows.Automation.WindowPattern]::Pattern).Close()
   exit 0

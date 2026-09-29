@@ -90,7 +90,8 @@ try {
 } catch (error) {
   console.error('Installed app verification failed:', error);
   const state = await page.evaluate(() => ({ nativeStatus: document.getElementById('native-camera-status')?.textContent,
-    button: document.getElementById('native-camera-toggle')?.textContent, stage: document.getElementById('stage')?.dataset.renderReady })).catch(() => null);
+    button: document.getElementById('native-camera-toggle')?.textContent, stage: document.getElementById('stage')?.dataset.renderReady,
+    catStatus: document.getElementById('cat-editor-status')?.textContent, toast: document.getElementById('toast')?.textContent })).catch(() => null);
   console.error('Installed app diagnostics', state, errors);
   writeFileSync('test-results/desktop-camera-diagnostics.json', JSON.stringify({ error: String(error), state, errors }, null, 2));
   await page.screenshot({ path: 'test-results/desktop-camera-failure.png', timeout: 5000 }).catch(() => {});
