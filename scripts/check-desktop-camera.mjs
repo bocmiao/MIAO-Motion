@@ -34,7 +34,7 @@ try {
   await expect(page.locator('#native-camera-status')).toContainText('正在输出', { timeout: 15_000 });
   const frames = [];
   for (const [name, color] of [['red', '#ff0000'], ['blue', '#0000ff']]) {
-    await page.bringToFront();
+    await page.bringToFront().catch(error => console.warn('WebView2 foreground request:', String(error)));
     await page.locator('#avatar-color').fill(color);
     // Wait for a changed rendered frame before the receiver opens.
     await page.waitForTimeout(1000);
@@ -51,7 +51,7 @@ try {
   assert.ok(redToBlue > 100, 'Avatar clothing changes must reach the real DirectShow receiver');
   assert.ok(green > 1000, 'Green stage must reach the real DirectShow receiver');
   console.log('Installed app → rendered avatar → Tauri IPC → DirectShow receiver verified.', { redToBlue, green });
-  await page.bringToFront();
+  await page.bringToFront().catch(error => console.warn('WebView2 foreground request:', String(error)));
   // Invoke the real UI handler directly, without animation-frame selector
   // polling in a WebView2 window that the receiver may have occluded.
   await page.evaluate(() => document.getElementById('native-camera-toggle').click());
