@@ -18,3 +18,8 @@ target_link_options(camera-register PRIVATE "/MANIFESTUAC:level='asInvoker' uiAc
 add_executable(camera-sender smoke-sender.cpp)
 target_include_directories(camera-sender PRIVATE softcam/src)
 target_link_libraries(camera-sender PRIVATE softcam)
+if(DEFINED ENV{GITHUB_ACTIONS})
+  add_executable(desktop-file-drop ../scripts/native-file-drop.cpp)
+  target_compile_options(desktop-file-drop PRIVATE /utf-8)
+  target_link_libraries(desktop-file-drop PRIVATE shell32 ole32 user32 uuid)
+endif()
