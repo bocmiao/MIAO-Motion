@@ -11,6 +11,7 @@ page.setDefaultTimeout(60_000);
 mkdirSync('test-results', { recursive: true });
 const errors = [];
 page.on('pageerror', error => errors.push(String(error)));
+page.on('console', message => { if (['warning','error'].includes(message.type())) errors.push(message.text()); });
 const capture = file => new Promise((resolve, reject) => {
   const process = spawn('ffmpeg', ['-hide_banner', '-y', '-f', 'dshow', '-video_size', '640x360',
     '-i', 'video=MIAO Motion Camera', '-frames:v', '1', '-update', '1', file], { stdio: 'inherit', windowsHide: true });
