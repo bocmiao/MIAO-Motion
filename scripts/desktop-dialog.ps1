@@ -6,12 +6,19 @@ Add-Type -AssemblyName UIAutomationTypes
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -TypeDefinition @'
 using System;
+using System.Text;
 using System.Runtime.InteropServices;
 public static class NativeSaveDialog {
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr window);
   [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
-  [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern IntPtr SendMessage(IntPtr window, uint message, IntPtr wparam, string text);
+  [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr window, uint message, IntPtr wparam, IntPtr lparam);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern IntPtr SendMessage(IntPtr window, uint message, IntPtr wparam, StringBuilder text);
   [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr window, uint message, IntPtr wparam, IntPtr lparam);
+  public static string ReadText(IntPtr window) {
+    var text = new StringBuilder(32768);
+    SendMessage(window, 0x000D, new IntPtr(text.Capacity), text);
+    return text.ToString();
+  }
 }
 '@
 $condition = [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::NameProperty, '保存导出文件')
@@ -48,11 +55,16 @@ $dialogHandle = [IntPtr]$dialog.Current.NativeWindowHandle
 [void][NativeSaveDialog]::SetForegroundWindow($dialogHandle)
 if ([NativeSaveDialog]::GetForegroundWindow() -ne $dialogHandle) { throw '另存为窗口未获得焦点，停止输入' }
 [Windows.Forms.Clipboard]::SetText($Destination)
-[Windows.Forms.SendKeys]::SendWait('%n')
+[void][NativeSaveDialog]::SendMessage($dialogHandle, 0x0028, [IntPtr]$edit.Current.NativeWindowHandle, [IntPtr]1)
 [Windows.Forms.SendKeys]::SendWait('^a')
 [Windows.Forms.SendKeys]::SendWait('^v')
-Start-Sleep -Milliseconds 300
-Write-Host "Native Save As destination: $Destination"
+$deadline = [DateTime]::UtcNow.AddSeconds(10)
+do {
+  $entered = [NativeSaveDialog]::ReadText([IntPtr]$edit.Current.NativeWindowHandle)
+  if ($entered -ne $Destination) { Start-Sleep -Milliseconds 200 }
+} while ($entered -ne $Destination -and [DateTime]::UtcNow -lt $deadline)
+if ($entered -ne $Destination) { throw "文件名输入未完成：$entered" }
+Write-Host "Native Save As entered destination: $entered"
 $buttonCondition = [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::AutomationIdProperty, '1')
 $deadline = [DateTime]::UtcNow.AddSeconds(10)
 do {

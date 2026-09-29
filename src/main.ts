@@ -1208,8 +1208,7 @@ deleteProfileButton.addEventListener('click', () => {
   });
 });
 exportSettingsButton.addEventListener('click', () => {
-  downloadJson('miao-motion-settings.json', createSettingsProfile(settings));
-  showToast('设置已导出；文件不包含模型和摄像头编号');
+  void downloadJson('miao-motion-settings.json', createSettingsProfile(settings));
 });
 importSettingsButton.addEventListener('click', () => settingsFileInput.click());
 settingsFileInput.addEventListener('change', async () => {
