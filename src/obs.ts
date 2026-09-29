@@ -1,12 +1,27 @@
-type Reply = { requestStatus: { result: boolean; comment?: string }; responseData?: Record<string, unknown> };
+type Reply = { requestStatus: { result: boolean; code?: number; comment?: string }; responseData?: Record<string, unknown> };
+
+/** OBS answered the request with a failure, so it certainly did not perform it. */
+class ObsRejected extends Error {}
+
+export const OBS_SCENE_BASE = '喵动 · 绿幕角色';
+export const OBS_INPUT_BASE = '喵动 · 窗口捕获';
+
+/** Readable name that is not used yet; OBS scenes and inputs share one name space. */
+export function uniqueObsName(base: string, taken: Set<string>) {
+  if (!taken.has(base)) return base;
+  let index = 2;
+  while (taken.has(`${base} ${index}`)) index++;
+  return `${base} ${index}`;
+}
 
 // OBS WebSocket v5: only the local default endpoint; passwords never enter storage.
 export async function configureObs(password: string) {
   const socket = new WebSocket('ws://127.0.0.1:4455');
   const pending = new Map<string, { resolve: (data: Record<string, unknown>) => void; reject: (error: Error) => void }>();
   let sequence = 0;
-  const sceneName = `喵动 ${crypto.randomUUID()}`, inputName = `${sceneName} 窗口`;
-  let sceneCreated = false, inputCreated = false;
+  // Registered *before* each create request: a request that times out may still complete in OBS later.
+  const created: { kind: 'input' | 'scene'; name: string }[] = [];
+  let sceneName = OBS_SCENE_BASE, inputName = OBS_INPUT_BASE;
   let timer: ReturnType<typeof setTimeout>;
   const hash = async (text: string) => btoa(String.fromCharCode(...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)))));
   const send = (type: string, data: Record<string, unknown> = {}) => new Promise<Record<string, unknown>>((resolve, reject) => {
@@ -16,6 +31,17 @@ export async function configureObs(password: string) {
     pending.set(id, { resolve: value => { clearTimeout(timeout); resolve(value); }, reject: error => { clearTimeout(timeout); reject(error); } });
     socket.send(JSON.stringify({ op: 6, d: { requestType: type, requestId: id, requestData: data } }));
   });
+  const create = async (kind: 'input' | 'scene', name: string, type: string, data: Record<string, unknown>) => {
+    const entry = { kind, name };
+    created.push(entry);
+    try { return await send(type, data); }
+    catch (error) {
+      // Only an explicit OBS refusal proves nothing was created (e.g. the name was taken meanwhile):
+      // never try to remove a same-named scene or source that belongs to the user.
+      if (error instanceof ObsRejected) created.splice(created.indexOf(entry), 1);
+      throw error;
+    }
+  };
   try {
     await new Promise<void>((resolve, reject) => {
       timer = setTimeout(() => { socket.close(); reject(new Error('OBS 连接超时，请启用工具 → WebSocket 服务器（端口 4455）')); }, 10_000);
@@ -33,15 +59,22 @@ export async function configureObs(password: string) {
             const reply = message.d as Reply & { requestId: string };
             const p = pending.get(reply.requestId); pending.delete(reply.requestId);
             if (reply.requestStatus.result) p?.resolve(reply.responseData ?? {});
-            else p?.reject(new Error(reply.requestStatus.comment ?? 'OBS 操作失败'));
+            else p?.reject(new ObsRejected(reply.requestStatus.comment ?? 'OBS 操作失败'));
           }
         } catch { reject(new Error('OBS 返回了无法识别的数据')); }
       };
     });
-    await send('CreateScene', { sceneName });
-    sceneCreated = true;
-    const input = await send('CreateInput', { sceneName, inputName, inputKind: 'window_capture', inputSettings: { cursor: false, client_area: true }, sceneItemEnabled: true });
-    inputCreated = true;
+    const scenes = await send('GetSceneList');
+    const inputs = await send('GetInputList');
+    const taken = new Set<string>([
+      ...(Array.isArray(scenes.scenes) ? scenes.scenes : []).map(scene => String(scene?.sceneName)),
+      ...(Array.isArray(inputs.inputs) ? inputs.inputs : []).map(input => String(input?.inputName)),
+    ]);
+    sceneName = uniqueObsName(OBS_SCENE_BASE, taken);
+    taken.add(sceneName);
+    inputName = uniqueObsName(OBS_INPUT_BASE, taken);
+    await create('scene', sceneName, 'CreateScene', { sceneName });
+    const input = await create('input', inputName, 'CreateInput', { sceneName, inputName, inputKind: 'window_capture', inputSettings: { cursor: false, client_area: true }, sceneItemEnabled: true });
     const properties = await send('GetInputPropertiesListPropertyItems', { inputName, propertyName: 'window' });
     const windows = Array.isArray(properties.propertyItems) ? properties.propertyItems : [];
     const window = windows.find(item => item.itemEnabled !== false && /MIAO Motion \/ 喵动/i.test(String(item.itemName)));
@@ -52,11 +85,17 @@ export async function configureObs(password: string) {
       const video = await send('GetVideoSettings');
       await send('SetSceneItemTransform', { sceneName, sceneItemId: input.sceneItemId, sceneItemTransform: { boundsType: 'OBS_BOUNDS_SCALE_INNER', boundsWidth: video.baseWidth, boundsHeight: video.baseHeight, positionX: 0, positionY: 0, alignment: 5 } });
     }
-    return `已创建“${sceneName}”并设置窗口捕获与绿幕。请在 OBS 选择这个场景预览；确认后再开播。`;
+    return `已创建场景“${sceneName}”（窗口来源“${inputName}”）并设置窗口捕获与绿幕。请在 OBS 选择这个场景预览；确认后再开播。`;
   } catch (error) {
-    let cleaned = true;
-    if (inputCreated) { try { await send('RemoveInput', { inputName }); } catch { cleaned = false; } }
-    if (sceneCreated) { try { await send('RemoveScene', { sceneName }); } catch { cleaned = false; } }
-    throw new Error(String(error) + (cleaned ? '；本次新增内容已清理。' : `；连接中断，请在 OBS 手动删除本次新增的“${sceneName}”。`));
+    const leftovers: string[] = [];
+    // Inputs first (they live inside the scene), newest first.
+    for (const { kind, name } of [...created].reverse()) {
+      try { await send(kind === 'input' ? 'RemoveInput' : 'RemoveScene', kind === 'input' ? { inputName: name } : { sceneName: name }); }
+      catch { leftovers.push(`${kind === 'input' ? '来源' : '场景'}“${name}”`); }
+    }
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new Error(reason + (!leftovers.length
+      ? (created.length ? '；本次新增内容已清理。' : '；OBS 中没有新增内容。')
+      : `；未能自动清理，请在 OBS 中检查并手动删除本次新增的${leftovers.join('、')}（如果存在）。`));
   } finally { clearTimeout(timer!); socket.close(); }
 }

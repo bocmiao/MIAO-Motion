@@ -19,7 +19,8 @@ import {
   VRMUtils,
 } from '@pixiv/three-vrm';
 import { damping, lerpMotion, solveExpressions } from './motion.mjs';
-import { applyNaturalPose, frameAvatar, vrmRotation, collectModelMetrics, gazeAngles, idleBlink, mirrorMotion, relativeHeadRotation } from './avatar-utils.mjs';
+import { applyNaturalPose, frameAvatar, vrmRotation, collectModelMetrics, gazeAngles, idleBlink, relativeHeadRotation } from './avatar-utils.mjs';
+import { mirrorFace } from './mirror.mjs';
 import {
   DEFAULT_SETTINGS,
   coarseUserAgent,
@@ -245,9 +246,12 @@ const nativeCamera = setupNativeCamera(canvas, () => Boolean(currentVrm) && stag
 let lastPhoneFrame = 0;
 const phone = setupPhone(packet => {
   lastPhoneFrame = performance.now();
-  latestHead.copy(packet.head);
-  if (!hasNeutral) { neutralHead.copy(latestHead); hasNeutral = true; }
-  targetMotion = scaleMotion(mirrorMotion(solveExpressions(packet.categories) as Motion, settings.mirror), settings.sensitivity);
+  // Packets without a head field still carry expressions; the head keeps its previous pose.
+  if (packet.head) {
+    latestHead.copy(packet.head);
+    if (!hasNeutral) { neutralHead.copy(latestHead); hasNeutral = true; }
+  }
+  targetMotion = scaleMotion(mirrorFace(solveExpressions(packet.categories) as Motion, settings.mirror), settings.sensitivity);
   lastDetectionAt = lastPhoneFrame; faceVisible = true; detectedFrames++;
   setTrackingState('active', '正在使用手机面捕');
 });
@@ -770,7 +774,7 @@ const processDetection = (result: FaceLandmarkerResult) => {
     neutralHead.copy(head);
     hasNeutral = true;
   }
-  targetMotion = scaleMotion(mirrorMotion(solveExpressions(categories as Category[]) as Motion, settings.mirror), settings.sensitivity);
+  targetMotion = scaleMotion(mirrorFace(solveExpressions(categories as Category[]) as Motion, settings.mirror), settings.sensitivity);
   lastDetectionAt = performance.now();
   detectedFrames += 1;
   if (!faceVisible) {

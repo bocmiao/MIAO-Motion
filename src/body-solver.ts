@@ -1,6 +1,7 @@
 import { Quaternion, Vector3 } from 'three';
 import type { VRM, VRMHumanBoneName } from '@pixiv/three-vrm';
 import type { Landmark, Category } from '@mediapipe/tasks-vision';
+import { avatarSide, lateralSign } from './mirror.mjs';
 export type BodyResult = { pose: Landmark[]; hands: Landmark[][]; handedness: Category[][] };
 
 export function createBodySolver(avatar: () => VRM | null, mirror: () => boolean) {
@@ -15,7 +16,7 @@ export function createBodySolver(avatar: () => VRM | null, mirror: () => boolean
     const bone = vrm.humanoid.getNormalizedBoneNode(name as VRMHumanBoneName);
     const child = vrm.humanoid.getNormalizedBoneNode(childName as VRMHumanBoneName);
     if (!bone?.parent || !child) return;
-    const target = new Vector3((b.x-a.x) * (mirror() ? -1 : 1), a.y-b.y, a.z-b.z);
+    const target = new Vector3((b.x-a.x) * lateralSign(mirror()), a.y-b.y, a.z-b.z);
     if (target.lengthSq() < 1e-8) return;
     if (!rests.has(name)) rests.set(name, bone.quaternion.clone());
     seen.set(name, now);
@@ -27,7 +28,8 @@ export function createBodySolver(avatar: () => VRM | null, mirror: () => boolean
   }
   return { reset, apply(result: BodyResult, now: number) {
     const p = result.pose;
-    const side = (source: 'left' | 'right') => mirror() ? (source === 'left' ? 'right' : 'left') : source;
+    // Pose indices and hand labels are anatomical (the subject's own side); see src/mirror.mjs.
+    const side = (subject: 'left' | 'right') => avatarSide(subject, mirror());
     for (const [source, shoulder, elbow, wrist, hip, knee, ankle, foot] of [['left',11,13,15,23,25,27,31],['right',12,14,16,24,26,28,32]] as const) {
       const s = side(source);
       for (const [bone,child,a,b] of [['UpperArm','LowerArm',shoulder,elbow],['LowerArm','Hand',elbow,wrist],['UpperLeg','LowerLeg',hip,knee],['LowerLeg','Foot',knee,ankle],['Foot','Toes',ankle,foot]] as const)

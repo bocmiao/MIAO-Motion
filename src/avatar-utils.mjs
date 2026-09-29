@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { lateralSign } from './mirror.mjs';
 
 const textureProperties = [
   'map', 'normalMap', 'emissiveMap', 'alphaMap', 'bumpMap', 'displacementMap',
@@ -51,17 +52,6 @@ export function collectModelMetrics(root, fileBytes) {
   return { fileBytes, triangles, materials: materials.size, textures: textures.size, maxTextureSize, textureBytes, geometryBytes };
 }
 
-export function mirrorMotion(motion, enabled) {
-  if (enabled) return { ...motion };
-  return {
-    ...motion,
-    blinkLeft: motion.blinkRight,
-    blinkRight: motion.blinkLeft,
-    lookLeft: motion.lookRight,
-    lookRight: motion.lookLeft,
-  };
-}
-
 export function gazeAngles(motion) {
   return {
     yaw: THREE.MathUtils.clamp((motion.lookLeft - motion.lookRight) * 30, -30, 30),
@@ -72,10 +62,12 @@ export function gazeAngles(motion) {
 export function relativeHeadRotation(current, neutral, sensitivity, mirrorEnabled) {
   const relative = neutral.clone().invert().multiply(current);
   const euler = new THREE.Euler().setFromQuaternion(relative, 'YXZ');
+  // Source yaw/roll are measured in the unmirrored camera image (+X = subject's left), like the body solver.
+  const sign = lateralSign(mirrorEnabled);
   euler.set(
     THREE.MathUtils.clamp(euler.x * sensitivity, -0.65, 0.65),
-    THREE.MathUtils.clamp(euler.y * sensitivity * (mirrorEnabled ? -1 : 1), -0.85, 0.85),
-    THREE.MathUtils.clamp(euler.z * sensitivity * (mirrorEnabled ? -1 : 1), -0.5, 0.5),
+    THREE.MathUtils.clamp(euler.y * sensitivity * sign, -0.85, 0.85),
+    THREE.MathUtils.clamp(euler.z * sensitivity * sign, -0.5, 0.5),
     'YXZ',
   );
   return new THREE.Quaternion().setFromEuler(euler);

@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { MToonMaterial, VRM, VRMHumanoid, VRMUtils } from '@pixiv/three-vrm';
 import * as THREE from 'three';
-import { applyNaturalPose, frameAvatar, vrmRotation, collectModelMetrics, gazeAngles, idleBlink, mirrorMotion, relativeHeadRotation } from '../src/avatar-utils.mjs';
+import { applyNaturalPose, frameAvatar, vrmRotation, collectModelMetrics, gazeAngles, idleBlink, relativeHeadRotation } from '../src/avatar-utils.mjs';
+import { mirrorFace } from '../src/mirror.mjs';
 
 test('model metrics include MToon uniforms and morph targets', () => {
   const root = new THREE.Group();
@@ -21,10 +22,15 @@ test('model metrics include MToon uniforms and morph targets', () => {
   assert.equal(metrics.triangles, 1);
 });
 
-test('mirror mode swaps lateral face channels only when disabled', () => {
-  const motion = { blinkLeft: 0.2, blinkRight: 0.8, lookLeft: 0.3, lookRight: 0.7, lookUp: 0.4, lookDown: 0.1 };
-  assert.deepEqual(mirrorMotion(motion, true), motion);
-  assert.deepEqual(mirrorMotion(motion, false), { ...motion, blinkLeft: 0.8, blinkRight: 0.2, lookLeft: 0.7, lookRight: 0.3 });
+test('mirror on (like a mirror) moves one-sided eye channels to the avatar\'s other side; off keeps them', () => {
+  // Only the source-left eye is closed and only a source-left gaze is present.
+  const motion = { blinkLeft: 0.9, blinkRight: 0, lookLeft: 0.6, lookRight: 0, lookUp: 0.4, lookDown: 0.1 };
+  assert.deepEqual(mirrorFace(motion, false), motion);
+  assert.deepEqual(mirrorFace(motion, true), { ...motion, blinkLeft: 0, blinkRight: 0.9, lookLeft: 0, lookRight: 0.6 });
+  // Head yaw follows the same rule: mirror on reverses the avatar-side direction.
+  const turn = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, 0.3, 0, 'YXZ'));
+  const yaw = mirror => new THREE.Euler().setFromQuaternion(relativeHeadRotation(turn, new THREE.Quaternion(), 1, mirror), 'YXZ').y;
+  assert.ok(yaw(false) > 0.29 && yaw(true) < -0.29);
 });
 
 test('gaze angles and relative head rotation are bounded', () => {
