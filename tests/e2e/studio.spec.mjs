@@ -71,9 +71,11 @@ test('OBS partial failure rolls back only its own scene and input', async ({ pag
   await page.getByText('自动配置 OBS（Windows）', {exact:true}).click();
   await page.locator('#setup-obs').click();
   await expect(page.locator('#obs-setup-status')).toContainText('本次新增内容已清理');
-  expect(requests.map(r=>r.requestType)).toEqual(['CreateScene','CreateInput','GetInputPropertiesListPropertyItems','RemoveInput','RemoveScene']);
-  expect(requests[3].requestData.inputName).toBe(requests[1].requestData.inputName);
-  expect(requests[4].requestData.sceneName).toBe(requests[0].requestData.sceneName);
+  expect(requests.map(r=>r.requestType)).toEqual(['GetSceneList','GetInputList','CreateScene','CreateInput','GetInputPropertiesListPropertyItems','RemoveInput','RemoveScene']);
+  expect(requests[2].requestData.sceneName).toBe('喵动 · 绿幕角色');
+  expect(requests[3].requestData.inputName).toBe('喵动 · 窗口捕获');
+  expect(requests[5].requestData.inputName).toBe(requests[3].requestData.inputName);
+  expect(requests[6].requestData.sceneName).toBe(requests[2].requestData.sceneName);
 });
 
 test('home choices and platform guide lead to an exportable customized mascot', async ({ page }) => {
@@ -216,10 +218,11 @@ test('OBS setup creates its own window source and green filter through authentic
   await expect(page.locator('#obs-setup-status')).toContainText('已创建');
   const hash = text => createHash('sha256').update(text).digest('base64');
   expect(authentication).toBe(hash(hash('test-passwordtest-salt') + 'test-challenge'));
-  expect(requests.map(r => r.requestType)).toEqual(['CreateScene', 'CreateInput', 'GetInputPropertiesListPropertyItems', 'SetInputSettings', 'CreateSourceFilter', 'GetVideoSettings', 'SetSceneItemTransform']);
-  expect(requests[4].requestData.filterKind).toBe('chroma_key_filter_v2');
-  expect(requests[6].requestData.sceneItemTransform.boundsWidth).toBe(1920);
-  expect(requests[1].requestData.inputKind).toBe('window_capture');
+  expect(requests.map(r => r.requestType)).toEqual(['GetSceneList', 'GetInputList', 'CreateScene', 'CreateInput', 'GetInputPropertiesListPropertyItems', 'SetInputSettings', 'CreateSourceFilter', 'GetVideoSettings', 'SetSceneItemTransform']);
+  expect(requests[6].requestData.filterKind).toBe('chroma_key_filter_v2');
+  expect(requests[8].requestData.sceneItemTransform.boundsWidth).toBe(1920);
+  expect(requests[3].requestData.inputKind).toBe('window_capture');
+  await expect(page.locator('#obs-setup-status')).toContainText('“喵动 · 绿幕角色”');
 });
 
 test('native bridge sends bounded binary frames and releases on stop; phone drives without webcam', async ({ page }) => {

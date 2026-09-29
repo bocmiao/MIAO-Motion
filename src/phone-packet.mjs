@@ -1,11 +1,19 @@
 import { Euler, Quaternion } from 'three';
 
 // iFacialMocap developer protocol: https://ifacialmocap.jimdofree.com/for-developer/
-/** @param {string} packet */
+/**
+ * Expression channels are kept even when a packet carries no `=head#` field (some iFacialMocap settings and
+ * versions omit it); `head` is then null and the caller keeps the previous head pose. A present but malformed
+ * head field marks a corrupted packet and rejects it entirely.
+ * @param {string} packet
+ * @returns {{ categories: { categoryName: string; score: number; index: number; displayName: string }[]; head: Quaternion | null } | null}
+ */
 export function parsePhonePacket(packet) {
   if (packet.length > 8192) return null;
   const channels = new Map();
+  /** @type {Quaternion | null} */
   let head = null;
+  let malformedHead = false;
   for (const field of packet.trim().split('|')) {
     const expression = /^([a-zA-Z]+(?:_[LR])?)\s*[-&]\s*(-?\d+(?:\.\d+)?)$/.exec(field);
     if (expression) {
@@ -17,9 +25,9 @@ export function parsePhonePacket(packet) {
       const angles = values.map(Number);
       if (values.length === 3 && values.every(x => x.trim()) && angles.every(x => Number.isFinite(x) && Math.abs(x) <= 360)) {
         head = new Quaternion().setFromEuler(new Euler((angles[0] ?? 0) * Math.PI / 180, -(angles[1] ?? 0) * Math.PI / 180, -(angles[2] ?? 0) * Math.PI / 180, 'YXZ'));
-      }
+      } else malformedHead = true;
     }
   }
   const categories = [...channels].map(([categoryName, score], index) => ({ categoryName, score, index, displayName: '' }));
-  return categories.length && head ? { categories, head } : null;
+  return categories.length && !malformedHead ? { categories, head } : null;
 }

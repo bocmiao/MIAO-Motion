@@ -2,6 +2,7 @@ import { Color, Material, Mesh, WebGLRenderer } from 'three';
 import type { VRM } from '@pixiv/three-vrm';
 import { latestRelease, isNewer } from '../public/release-info.js';
 import { version } from '../package.json';
+import { createAutoQuality } from './auto-quality.mjs';
 
 const element = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const expressions = ['happy', 'angry', 'sad', 'relaxed', 'surprised'];
@@ -105,7 +106,7 @@ export function setupStudioTools(renderer: WebGLRenderer, avatar: () => VRM | nu
     finally { updateButton.disabled = false; }
   });
 
-  let windowStart = 0, frames = 0, slowWindows = 0, fastWindows = 0, ratio = 1.5;
+  const autoQuality = createAutoQuality();
   return {
     microphoneActive: () => Boolean(mic),
     reloadAppearance() {
@@ -148,24 +149,12 @@ export function setupStudioTools(renderer: WebGLRenderer, avatar: () => VRM | nu
       }
     },
     quality(now: number, auto: boolean, trackingBusy = false) {
-      if (auto && trackingBusy) {
-        windowStart = now; frames = slowWindows = fastWindows = 0;
-        element('auto-quality-status').textContent = '身体追踪期间保持清晰度；识别频率会随负载降低';
-        return;
-      }
-      if (!auto || document.hidden) { windowStart = now; frames = slowWindows = fastWindows = 0; return; }
-      frames++;
-      if (!windowStart) windowStart = now;
-      if (now - windowStart < 5000) return;
-      const fps = frames * 1000 / (now - windowStart);
-      slowWindows = fps < 24 ? slowWindows + 1 : 0;
-      fastWindows = fps > 50 ? fastWindows + 1 : 0;
-      if (slowWindows >= 2) { ratio = Math.max(0.5, ratio - 0.25); slowWindows = 0; }
-      if (fastWindows >= 4) { ratio = Math.min(1.5, ratio + 0.25); fastWindows = 0; }
-      const target = Math.min(window.devicePixelRatio, ratio);
+      if (!auto || document.hidden) { autoQuality.reset(now); return; }
+      const report = autoQuality.frame(now, trackingBusy);
+      if (!report) return;
+      const target = Math.min(window.devicePixelRatio, report.ratio);
       if (renderer.getPixelRatio() !== target) renderer.setPixelRatio(target);
-      element('auto-quality-status').textContent = `自动画质 · ${Math.round(fps)} 帧/秒 · 渲染倍率 ${target.toFixed(2)}`;
-      windowStart = now; frames = 0;
+      element('auto-quality-status').textContent = `自动画质 · ${Math.round(report.fps)} 帧/秒 · 渲染倍率 ${target.toFixed(2)}${report.bodyTracking ? ' · 身体追踪中，持续明显卡顿才降低清晰度' : ''}`;
     },
   };
 }

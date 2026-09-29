@@ -1,5 +1,8 @@
 import { invoke, isTauri } from '@tauri-apps/api/core';
 
+export const LEGACY_COMPONENT_WARNING = '检测到旧版（v0.3.0 及更早）的虚拟摄像头组件，存在安全风险。请点击“卸载摄像头组件”清理，再重新安装。';
+type ComponentState = { registered: boolean; legacy: boolean; path_kind: 'protected' | 'legacy' | 'none' };
+
 export function setupNativeCamera(canvas: HTMLCanvasElement, ready: () => boolean) {
   const button = document.getElementById('native-camera-toggle') as HTMLButtonElement;
   const status = document.getElementById('native-camera-status')!;
@@ -7,6 +10,14 @@ export function setupNativeCamera(canvas: HTMLCanvasElement, ready: () => boolea
   const output = document.createElement('canvas'); output.width = 640; output.height = 360;
   const context = output.getContext('2d', { willReadFrequently: true })!;
   const pixels = new Uint8Array(640 * 360 * 3);
+  // Desktop only: warn about a component registered by an old, unprotected install location.
+  const checkComponent = async () => {
+    if (!isTauri()) return;
+    try {
+      const state = await invoke<ComponentState>('native_camera_component_state');
+      if (state?.legacy === true) status.textContent = LEGACY_COMPONENT_WARNING;
+    } catch { /* Older desktop builds lack this command; the rest of the panel keeps working. */ }
+  };
   const stop = () => { generation++; active = false; void invoke('native_camera_stop').catch(() => {}); button.textContent = '开始虚拟摄像头输出'; };
   for (const [id, remove] of [['native-camera-install', false], ['native-camera-remove', true]] as const) {
     const control = document.getElementById(id) as HTMLButtonElement;
@@ -17,8 +28,10 @@ export function setupNativeCamera(canvas: HTMLCanvasElement, ready: () => boolea
       if (remove) stop();
       for (const id of ['native-camera-install', 'native-camera-remove', 'native-camera-toggle']) (document.getElementById(id) as HTMLButtonElement).disabled = true;
       status.textContent = '等待 Windows 权限确认…画面可以继续使用。';
-      try { await invoke('native_camera_install', { remove }); status.textContent = remove ? '虚拟摄像头已注销' : '虚拟摄像头已安装，请重新打开接收软件'; }
-      catch (error) { status.textContent = String(error); }
+      try {
+        await invoke('native_camera_install', { remove }); status.textContent = remove ? '虚拟摄像头已注销' : '虚拟摄像头已安装，请重新打开接收软件';
+        await checkComponent();
+      } catch (error) { status.textContent = String(error); }
       finally {
         installing = false;
         for (const id of ['native-camera-install', 'native-camera-remove', 'native-camera-toggle']) (document.getElementById(id) as HTMLButtonElement).disabled = false;
@@ -40,6 +53,7 @@ export function setupNativeCamera(canvas: HTMLCanvasElement, ready: () => boolea
     finally { button.disabled = false; }
   });
   window.addEventListener('pagehide', stop);
+  void checkComponent();
   return { tick(now: number) {
     if (!active || busy || now - last < 1000 / 15) return;
     last = now; busy = true; const request = generation;

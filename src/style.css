@@ -201,12 +201,13 @@ button:focus-visible, .stage:focus-visible { outline: 3px solid #e5a13e; outline
 
 .broadcast-controls { padding: 10px; display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
 
+/* Desktop: the preview stays in view while the long settings column scrolls, and never outgrows the viewport. */
 .stage-card {
   align-self: start;
-  height: max(600px, calc(100vh - 120px));
+  height: max(420px, min(calc(100vh - 32px), 900px));
   position: sticky;
   top: 16px;
-  min-height: 600px;
+  min-height: 420px;
   overflow: hidden;
   display: grid;
   grid-template-rows: auto 1fr;
@@ -224,7 +225,7 @@ button:focus-visible, .stage:focus-visible { outline: 3px solid #e5a13e; outline
 #model-status[data-kind="error"] { color: #b13b35; }
 .local-badge { padding: 6px 9px; font-size: 10px; font-weight: 900; letter-spacing: 0.1em; }
 
-.stage { position: relative; min-height: 520px; overflow: hidden; }
+.stage { position: relative; min-height: 340px; overflow: hidden; }
 .stage[data-aspect="16:9"] { min-height: 0; aspect-ratio: 16 / 9; align-self: center; }
 .stage[data-aspect="9:16"] { width: min(100%, 390px); min-height: 0; aspect-ratio: 9 / 16; justify-self: center; }
 .stage[data-aspect="1:1"] { width: min(100%, 620px); min-height: 0; aspect-ratio: 1; justify-self: center; align-self: center; }
@@ -320,7 +321,8 @@ html:has(body.broadcast-mode) { background: transparent; }
   .workspace { grid-template-columns: 1fr; }
   .control-panel { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .tracking-card, :is(.advanced-settings, .studio-settings), .library-settings, .motion-settings, .profile-settings, .model-doctor, .preflight-check, .data-tools, .broadcast-controls { min-height: 120px; }
-  .stage-card { min-height: 550px; order: -1; }
+  /* Single column: pinning the preview would cover the settings below it. */
+  .stage-card { position: relative; top: auto; height: auto; min-height: 550px; order: -1; }
 }
 
 @media (max-width: 620px) {

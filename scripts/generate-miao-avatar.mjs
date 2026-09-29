@@ -21,8 +21,9 @@ function attribute(array, type, bounds = false) {
   accessors.push(item); return accessors.length - 1;
 }
 function node(name, position, parent) {
-  const id = nodes.length; nodes.push({ name, translation: position, children: [] });
-  if (parent !== undefined) nodes[parent].children.push(id);
+  // glTF forbids empty arrays, so `children` only exists once a node has one.
+  const id = nodes.length; nodes.push({ name, translation: position });
+  if (parent !== undefined) (nodes[parent].children ??= []).push(id);
   return id;
 }
 function shape(parent, name, position, scale, material, kind = 'sphere', morphs = []) {
@@ -36,7 +37,8 @@ function shape(parent, name, position, scale, material, kind = 'sphere', morphs 
       const target = transform(vertices[i], vertices[i + 1], vertices[i + 2]);
       delta[i] = target[0] - vertices[i]; delta[i + 1] = target[1] - vertices[i + 1]; delta[i + 2] = target[2] - vertices[i + 2];
     }
-    return { POSITION: attribute(delta, 'VEC3') };
+    // Morph target POSITION accessors must declare min/max as well (glTF 2.0 §3.7.2.1).
+    return { POSITION: attribute(delta, 'VEC3', true) };
   });
   const mesh = meshes.length; meshes.push({ name, primitives: [primitive], ...(morphs.length ? { weights: morphs.map(() => 0) } : {}) });
   const id = node(name, position, parent); nodes[id].mesh = mesh;

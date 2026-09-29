@@ -1,9 +1,13 @@
 export const catChoices = { ears: ['pointed', 'round'], tail: ['long', 'short'], hair: ['tuft', 'smooth'], clothes: ['badge', 'hoodie'] } as const;
 export type CatCategory = keyof typeof catChoices;
 export type CatStyle = { name: string } & Record<CatCategory, string>;
+type Accessor = { bufferView?: number; byteOffset?: number; componentType: number; count: number; type: string; min?: number[]; max?: number[]; sparse?: unknown };
 type CatDocument = {
   asset: { generator?: string };
-  nodes: { name?: string; scale?: number[] }[];
+  nodes: { name?: string; scale?: number[]; children?: number[] }[];
+  meshes?: { primitives: { attributes: Record<string, number>; targets?: Record<string, number>[] }[] }[];
+  accessors?: Accessor[];
+  bufferViews?: { byteOffset?: number; byteLength: number; byteStride?: number }[];
   materials: { name?: string; pbrMetallicRoughness?: { baseColorFactor?: number[] } }[];
   extensions: { VRMC_vrm: { meta: { name: string } } };
 };
@@ -23,8 +27,35 @@ export function readCat(buffer: ArrayBuffer) {
   }
   return { document, style, tail: new Uint8Array(buffer, 20 + length) };
 }
+// Characters exported by v0.3.0 and earlier carried glTF validation errors (empty `children` arrays and
+// morph-target POSITION accessors without bounds). Repair them so re-exported files pass the validator.
+function repairDocument(document: CatDocument, tail: Uint8Array) {
+  for (const node of document.nodes) if (Array.isArray(node.children) && !node.children.length) delete node.children;
+  const view = new DataView(tail.buffer, tail.byteOffset, tail.byteLength);
+  const binLength = tail.byteLength >= 8 && view.getUint32(4, true) === 0x004e4942 ? view.getUint32(0, true) : 0;
+  const positions = new Set<number>();
+  for (const mesh of document.meshes ?? []) for (const primitive of mesh.primitives) {
+    if (primitive.attributes.POSITION !== undefined) positions.add(primitive.attributes.POSITION);
+    for (const target of primitive.targets ?? []) if (target.POSITION !== undefined) positions.add(target.POSITION);
+  }
+  for (const index of positions) {
+    const accessor = document.accessors?.[index];
+    const bufferView = accessor?.bufferView === undefined ? undefined : document.bufferViews?.[accessor.bufferView];
+    if (!accessor || !bufferView || (accessor.min && accessor.max) || accessor.sparse || accessor.componentType !== 5126 || accessor.type !== 'VEC3') continue;
+    const stride = bufferView.byteStride ?? 12, start = (bufferView.byteOffset ?? 0) + (accessor.byteOffset ?? 0);
+    if (!accessor.count || start + stride * (accessor.count - 1) + 12 > Math.min(binLength, (bufferView.byteOffset ?? 0) + bufferView.byteLength)) continue;
+    const min = [Infinity, Infinity, Infinity], max = [-Infinity, -Infinity, -Infinity];
+    for (let i = 0; i < accessor.count; i++) for (let axis = 0; axis < 3; axis++) {
+      const value = view.getFloat32(8 + start + i * stride + axis * 4, true);
+      min[axis] = Math.min(min[axis]!, value); max[axis] = Math.max(max[axis]!, value);
+    }
+    if ([...min, ...max].every(Number.isFinite)) { accessor.min = min; accessor.max = max; }
+  }
+}
+
 export function exportCat(buffer: ArrayBuffer, style: CatStyle, colors: Record<string, number[]>) {
   const { document, tail } = readCat(buffer);
+  repairDocument(document, tail);
   document.extensions.VRMC_vrm.meta.name = style.name.trim().slice(0, 40) || '喵小动';
   for (const category of Object.keys(catChoices) as CatCategory[]) {
     if (!(catChoices[category] as readonly string[]).includes(style[category])) throw new Error('未知部件');
@@ -48,4 +79,13 @@ export function exportCat(buffer: ArrayBuffer, style: CatStyle, colors: Record<s
   header.setUint32(12, length, true); header.setUint32(16, 0x4e4f534a, true);
   output.fill(32, 20, 20 + length); output.set(encoded, 20); output.set(tail, 20 + length);
   return output;
+}
+
+const WINDOWS_RESERVED = /^(con|prn|aux|nul|com[1-9¹²³]|lpt[1-9¹²³])$/i;
+/** File name for a downloaded character that Windows can always save (reserved names, trailing dots/spaces). */
+export function safeFileName(name: string, extension = '.vrm') {
+  let base = name.replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_').trim().replace(/[.\s]+$/u, '');
+  const stem = base.split('.')[0] ?? '';
+  if (WINDOWS_RESERVED.test(stem.trim())) base = `${stem.trim()}_${base.slice(stem.length)}`;
+  return (base || '喵小动') + extension;
 }

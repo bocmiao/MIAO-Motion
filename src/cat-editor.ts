@@ -1,6 +1,6 @@
 import { Color, Mesh } from 'three';
 import type { VRM } from '@pixiv/three-vrm';
-import { catChoices, readCat, exportCat, type CatCategory, type CatStyle } from './cat-vrm';
+import { catChoices, readCat, exportCat, safeFileName, type CatCategory, type CatStyle } from './cat-vrm';
 
 export function setupCatEditor(avatar: () => VRM | null, modelId: () => string) {
   const fieldset = document.getElementById('cat-editor') as HTMLFieldSetElement;
@@ -36,9 +36,10 @@ export function setupCatEditor(avatar: () => VRM | null, modelId: () => string) 
       const output = exportCat(source, style(), colors);
       const url = URL.createObjectURL(new Blob([output], { type: 'model/vrm' }));
       const link = document.createElement('a'); link.href = url;
-      link.download = style().name.replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_') + '.vrm'; link.click();
+      const fileName = safeFileName(style().name);
+      link.download = fileName; link.click();
       setTimeout(() => URL.revokeObjectURL(url), 10_000);
-      status.textContent = '已导出角色，保留了骨骼、表情、作者和许可。';
+      status.textContent = `已导出“${fileName}”，保留了骨骼和表情。作者仍为喵动项目（原角色许可：VRM 公共许可，允许任何人使用、商用与修改再分发），名字改为你起的名字。`;
     } catch { status.textContent = '导出失败，请重新加载喵小动后重试。'; }
   });
   return { async load(file: File, expected: VRM) {
