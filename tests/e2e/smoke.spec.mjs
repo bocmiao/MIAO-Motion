@@ -115,6 +115,7 @@ test('摄像头权限等待期间拒绝重复启动', async ({ page }) => {
   await page.locator('#camera-toggle').click();
   await page.locator('#open-guide').click();
   await page.locator('#onboarding-next').click();
+  await page.locator('[data-onboarding-panel="1"] summary').click();
   await page.locator('#onboarding-skip').click();
   // Exercise the second entry handler directly while its disabled state is bypassed.
   await page.locator('#onboarding-camera').evaluate(button => { button.disabled = false; button.click(); });

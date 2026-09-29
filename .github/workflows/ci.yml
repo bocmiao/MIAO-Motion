@@ -215,7 +215,20 @@ jobs:
       - name: Validate DirectShow frames and remove registration
         shell: pwsh
         run: ./scripts/smoke-native-camera.ps1
+      - name: Restore desktop Rust build
+        id: desktop-rust-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: src-tauri/target
+          key: desktop-rust-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock') }}
       - run: npm run desktop:build -- -- --locked
+      - run: cargo test --release --locked --manifest-path src-tauri/Cargo.toml --lib
+      - name: Cache compiled desktop before interactive checks
+        if: steps.desktop-rust-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: src-tauri/target
+          key: desktop-rust-${{ runner.os }}-${{ hashFiles('src-tauri/Cargo.lock') }}
       - name: Install, launch, reinstall, upgrade and uninstall NSIS package
         # Includes camera component lifecycle regressions (see scripts/smoke-desktop.ps1).
         timeout-minutes: 12

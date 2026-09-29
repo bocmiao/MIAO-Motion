@@ -1,6 +1,6 @@
 Rust dependencies for Windows desktop (including build-time dependencies).
 
-Cargo.lock SHA-256: 62f9deb25da39b815ca1467a5a1ce4a4e86ba868b32ffb60a4b26c75b48fd472
+Cargo.lock SHA-256: e5a02e156d4ae40446b0e601f7b25cf32af842d64a0908f8b0b1ca2ad183b88c
 
 ===== adler2@2.0.1 (0BSD OR MIT OR Apache-2.0) =====
 LICENSE-0BSD
@@ -23140,6 +23140,31 @@ CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
 OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
 IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
+
+
+===== rfd@0.15.4 (MIT) =====
+LICENSE
+MIT License
+
+Copyright (c) 2022 Bartłomiej Maryńczak
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 
 
 ===== rustc_version@0.4.1 (MIT OR Apache-2.0) =====

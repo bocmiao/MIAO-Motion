@@ -1,4 +1,5 @@
 import './style.css';
+import { saveFile, setupHelpLinks } from './desktop-io';
 import { setupNativeCamera } from './native-camera';
 import { setupPhone } from './phone';
 import { setupBodyTracking } from './body-tracking';
@@ -6,6 +7,7 @@ import { configureObs } from './obs';
 import { setupStudioTools } from './studio-tools';
 import { prepareAvatarFrame } from './render-ready';
 import { setupPlatformGuide } from './platform-guide';
+import { setupCharacterCreator } from './character-creator';
 import { setupCatEditor } from './cat-editor';
 import * as THREE from 'three';
 import type { Category, FaceLandmarker, FaceLandmarkerResult } from '@mediapipe/tasks-vision';
@@ -204,6 +206,7 @@ const loader = new GLTFLoader();
 loader.register((parser) => new VRMLoaderPlugin(parser));
 
 let currentVrm: VRM | null = null;
+let currentCharacterRecipe: unknown = null;
 let cameraStream: MediaStream | null = null;
 let faceLandmarker: FaceLandmarker | null = null;
 let detectorPromise: Promise<FaceLandmarker> | null = null;
@@ -224,6 +227,7 @@ let lastFpsAt = performance.now();
 let detectedFrames = 0;
 let toastTimer = 0;
 let onboardingStep = 0;
+let onboardingTimer = 0;
 let modelCanAnimate = false;
 let modelPreparing = false;
 let currentModelMetrics: ModelMetrics | null = null;
@@ -241,6 +245,12 @@ const clock = new THREE.Clock();
 const bodyTracking = setupBodyTracking(() => currentVrm, () => settings.mirror);
 const studio = setupStudioTools(renderer, () => currentVrm, () => currentModelId, message => showToast(message), () => updateBroadcastStatus());
 setupPlatformGuide();
+for (const id of ['body-tracking', 'onboarding-body']) required<HTMLInputElement>('#' + id).addEventListener('change', event => {
+  settings = { ...settings, bodyTracking: (event.target as HTMLInputElement).checked }; saveSettings();
+  for (const other of ['body-tracking', 'onboarding-body']) required<HTMLInputElement>('#' + other).checked = settings.bodyTracking;
+  if (!settings.bodyTracking) bodyTracking.stop();
+});
+if (navigator.hardwareConcurrency >= 8) required('#body-recommendation').textContent = '这台电脑可以先试试全身动捕，让手臂和手指一起动；实际是否流畅以试动为准。';
 const catEditor = setupCatEditor(() => currentVrm, () => currentModelId);
 const nativeCamera = setupNativeCamera(canvas, () => Boolean(currentVrm) && stage.dataset.renderReady === 'true');
 let lastPhoneFrame = 0;
@@ -271,15 +281,10 @@ const addDiagnosticEvent = (kind: string, value: unknown) => {
   try { localStorage.setItem(DIAGNOSTICS_KEY, JSON.stringify(diagnosticEvents)); } catch { /* Private contexts may block storage. */ }
 };
 
-const downloadJson = (name: string, value: unknown) => {
-  const url = URL.createObjectURL(new Blob([`${JSON.stringify(value, null, 2)}\n`], { type: 'application/json' }));
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = name;
-  document.body.append(link);
-  link.click();
-  link.remove();
-  window.setTimeout(() => URL.revokeObjectURL(url), 0);
+const downloadJson = async (name: string, value: unknown) => {
+  showToast('正在准备保存文件…');
+  try { showToast(await saveFile(name, new Blob([JSON.stringify(value, null, 2) + '\n'], { type: 'application/json' })) ? '文件已保存' : '已取消保存'); }
+  catch { showToast('保存失败，请检查目录权限和剩余空间后重试'); }
 };
 
 const showToast = (message: string) => {
@@ -288,6 +293,8 @@ const showToast = (message: string) => {
   toast.hidden = false;
   toastTimer = window.setTimeout(() => { toast.hidden = true; }, 2600);
 };
+
+setupHelpLinks(showToast);
 
 const updateBroadcastStatus = () => {
   if (!document.body.classList.contains('broadcast-mode')) {
@@ -340,9 +347,9 @@ const updateOnboarding = () => {
   onboardingNextButton.disabled = !state.canContinue;
   onboardingNextButton.textContent = state.nextLabel;
   onboardingModelState.textContent = modelCanAnimate
-    ? `${modelName.textContent} · 检查通过`
+    ? `✓ 已载入 ${modelName.textContent}`
     : currentVrm ? `${modelName.textContent} · 缺少头部骨骼，需更换模型` : '尚未导入角色';
-  onboardingCameraState.textContent = cameraStream ? '已开启 · 画面仅在本机处理' : cameraStatus.textContent ?? '尚未开启';
+  onboardingCameraState.textContent = cameraStream ? '✓ 摄像头已开启 · 画面仅在本机处理' : cameraStatus.textContent ?? '尚未开启';
   onboardingCameraButton.textContent = cameraStarting ? '正在开启…' : cameraStream ? '关闭摄像头' : '开启摄像头';
   onboardingCameraButton.disabled = cameraStarting;
   onboardingCalibrateButton.disabled = !modelCanAnimate || !cameraStream;
@@ -350,10 +357,19 @@ const updateOnboarding = () => {
   updateBroadcastStatus();
 };
 
+const advanceOnSuccess = (step: number) => {
+  clearTimeout(onboardingTimer);
+  if (!onboardingDialog.open || onboardingStep !== step) return;
+  onboardingTimer = window.setTimeout(() => {
+    if (onboardingDialog.open && onboardingStep === step && (step === 1 ? modelCanAnimate : Boolean(cameraStream))) { onboardingStep++; updateOnboarding(); }
+  }, 1100);
+};
+onboardingDialog.addEventListener('close', () => clearTimeout(onboardingTimer));
+
 const openOnboarding = () => {
   onboardingStep = 0;
   updateOnboarding();
-  if (!onboardingDialog.open) onboardingDialog.showModal();
+  if (!onboardingDialog.open) onboardingDialog.show();
 };
 
 const setTrackingQuality = (fps = 0, visible = false) => {
@@ -557,6 +573,8 @@ const loadVrm = async (file: File, persist = true, storedId = '') => {
 
     bodyTracking.resetPose();
     currentVrm = vrm;
+    currentCharacterRecipe = gltf.parser.json.extras?.miaoCharacter ?? null;
+    required<HTMLButtonElement>('#edit-created-character').disabled = !currentCharacterRecipe;
     catEditor.clear();
     // A failed save must not attach the new avatar's colors to the old library entry.
     currentModelId = '';
@@ -604,6 +622,7 @@ const loadVrm = async (file: File, persist = true, storedId = '') => {
     }
     studio.reloadAppearance();
     await catEditor.load(file, vrm);
+    advanceOnSuccess(1);
     return true;
   } catch (error) {
     if (generation !== loadGeneration) return false;
@@ -747,6 +766,7 @@ const startCamera = async () => {
     }
   } finally {
     cameraStarting = false;
+    if (cameraStream) advanceOnSuccess(2);
     cameraButton.disabled = false;
     cameraSelect.disabled = false;
     updateOnboarding();
@@ -863,6 +883,9 @@ const applySettingsToControls = (applySavedBackground = true) => {
   renderQualitySelect.value = settings.renderQuality;
   outputAspectSelect.value = settings.outputAspect;
   mirrorInput.checked = settings.mirror;
+  required<HTMLInputElement>('#body-tracking').checked = settings.bodyTracking;
+  required<HTMLInputElement>('#onboarding-body').checked = settings.bodyTracking;
+  if (!settings.bodyTracking) bodyTracking.stop();
   cameraSelect.value = settings.cameraId;
   renderer.setPixelRatio(renderPixelRatio(settings.renderQuality, window.devicePixelRatio));
   applyBackground();
@@ -882,6 +905,8 @@ const removeCurrentModel = async (deleteRecord = true) => {
     VRMUtils.deepDispose(currentVrm.scene);
   }
   currentVrm = null;
+  currentCharacterRecipe = null;
+  required<HTMLButtonElement>('#edit-created-character').disabled = true;
   catEditor.clear();
   studio.reloadAppearance();
   modelPreparing = false;
@@ -922,7 +947,7 @@ const exportDiagnosticReport = () => {
   } catch (error) {
     graphics = { error: sanitizeDiagnosticMessage(error) };
   }
-  downloadJson(`miao-motion-diagnostics-${new Date().toISOString().slice(0, 10)}.json`, {
+  void downloadJson(`miao-motion-diagnostics-${new Date().toISOString().slice(0, 10)}.json`, {
     generatedAt: new Date().toISOString(),
     privacy: '不包含摄像头画面、模型内容、文件路径或设备编号',
     environment: { browser: coarseUserAgent(navigator.userAgent), language: navigator.language, online: navigator.onLine },
@@ -933,7 +958,6 @@ const exportDiagnosticReport = () => {
     tracking: { status: trackingStatus.textContent, faceVisible },
     recentEvents: diagnosticEvents,
   });
-  showToast('诊断报告已下载，可在反馈问题时附上');
 };
 
 const runPreflight = async () => {
@@ -1183,8 +1207,7 @@ deleteProfileButton.addEventListener('click', () => {
   });
 });
 exportSettingsButton.addEventListener('click', () => {
-  downloadJson('miao-motion-settings.json', createSettingsProfile(settings));
-  showToast('设置已导出；文件不包含模型和摄像头编号');
+  void downloadJson('miao-motion-settings.json', createSettingsProfile(settings));
 });
 importSettingsButton.addEventListener('click', () => settingsFileInput.click());
 settingsFileInput.addEventListener('change', async () => {
@@ -1265,10 +1288,12 @@ openGuideButton.addEventListener('click', openOnboarding);
 onboardingCloseButton.addEventListener('click', () => onboardingDialog.close());
 onboardingLaterButton.addEventListener('click', () => onboardingDialog.close());
 onboardingBackButton.addEventListener('click', () => {
+  clearTimeout(onboardingTimer);
   onboardingStep -= 1;
   updateOnboarding();
 });
 onboardingNextButton.addEventListener('click', () => {
+  clearTimeout(onboardingTimer);
   if (onboardingStep === 3) {
     settings = { ...settings, onboardingComplete: true };
     saveSettings();
@@ -1358,6 +1383,19 @@ const resize = () => {
   if (currentVrm) frameModel(currentVrm.scene, settings.viewPreset);
 };
 new ResizeObserver(resize).observe(stage);
+setupCharacterCreator({
+  preview: file => loadVrm(file, false),
+  save: async (file, id) => {
+    const saved = await putStoredModel(file, id);
+    await updateStoredModel(saved.id, { name: file.name, thumbnail: '' });
+    currentModelId = saved.id; settings = { ...settings, activeModelId: saved.id }; saveSettings();
+    thumbnailPendingId = saved.id; await refreshModelLibrary(); return saved.id;
+  },
+  currentRecipe: () => catEditor.recipe() ?? currentCharacterRecipe,
+  currentId: () => currentModelId,
+  camera: () => cameraButton.click(),
+  frame: () => { if (currentVrm) frameModel(currentVrm.scene, 'full'); },
+});
 applySettingsToControls(!requestedBackground);
 obsButton.hidden = desktopRuntime;
 setTrackingQuality();

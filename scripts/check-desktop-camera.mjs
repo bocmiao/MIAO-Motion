@@ -1,3 +1,4 @@
+import { checkDesktopIO } from './check-desktop-io.mjs';
 import { chromium, expect } from '@playwright/test';
 import { spawn } from 'node:child_process';
 import { readFileSync, mkdirSync, writeFileSync } from 'node:fs';
@@ -24,6 +25,9 @@ try {
   await page.locator('#load-miao').click();
   await expect(page.locator('#stage')).toHaveAttribute('data-render-ready', 'true', { timeout: 60_000 });
   await page.locator('#onboarding-later').click();
+  // Use the real performance setting on the hosted CI graphics adapter.
+  await page.locator('#render-quality').evaluate(input => { input.value = 'performance'; input.dispatchEvent(new Event('change', { bubbles: true })); });
+  await checkDesktopIO(page);
   await page.locator('.studio-settings > summary').click();
   await page.locator('#avatar-material').selectOption({ label: '深青色衣服' });
   await page.getByText('原生虚拟摄像头（Windows）', { exact: true }).click();
@@ -33,6 +37,11 @@ try {
   await page.locator('#native-camera-toggle').click();
   await expect(page.locator('#native-camera-status')).toContainText('正在输出', { timeout: 15_000 });
   const sentFrames = () => page.locator('#native-camera-status').evaluate(status => Number(status.dataset.frames ?? 0));
+  await page.evaluate(() => {
+    window.__desktopAnimationFrames = 0;
+    const count = () => { window.__desktopAnimationFrames++; requestAnimationFrame(count); };
+    requestAnimationFrame(count);
+  });
   const frames = [];
   for (const [name, color] of [['red', '#ff0000'], ['blue', '#0000ff']]) {
     await page.bringToFront().catch(error => console.warn('WebView2 foreground request:', String(error)));
@@ -54,7 +63,11 @@ try {
     }, color);
     // Wait until the app has sent two more frames after the change: a busy CI runner lowers the output
     // rate, so a fixed delay could capture a frame rendered before the new color.
-    await expect.poll(sentFrames, { timeout: 30_000 }).toBeGreaterThanOrEqual(framesBefore + 2);
+    await expect.poll(async () => {
+      const state = await page.evaluate(() => ({ sent: Number(document.getElementById('native-camera-status').dataset.frames ?? 0), rendered: window.__desktopAnimationFrames, visibility: document.visibilityState }));
+      console.log('Installed output progress', state);
+      return state.sent;
+    }, { timeout: 30_000 }).toBeGreaterThanOrEqual(framesBefore + 2);
     const path = 'test-results/desktop-camera-' + name + '.png';
     await capture(path);
     frames.push(PNG.sync.read(readFileSync(path)));
@@ -77,7 +90,8 @@ try {
 } catch (error) {
   console.error('Installed app verification failed:', error);
   const state = await page.evaluate(() => ({ nativeStatus: document.getElementById('native-camera-status')?.textContent,
-    button: document.getElementById('native-camera-toggle')?.textContent, stage: document.getElementById('stage')?.dataset.renderReady })).catch(() => null);
+    button: document.getElementById('native-camera-toggle')?.textContent, stage: document.getElementById('stage')?.dataset.renderReady,
+    catStatus: document.getElementById('cat-editor-status')?.textContent, toast: document.getElementById('toast')?.textContent })).catch(() => null);
   console.error('Installed app diagnostics', state, errors);
   writeFileSync('test-results/desktop-camera-diagnostics.json', JSON.stringify({ error: String(error), state, errors }, null, 2));
   await page.screenshot({ path: 'test-results/desktop-camera-failure.png', timeout: 5000 }).catch(() => {});

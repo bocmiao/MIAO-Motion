@@ -73,6 +73,7 @@ test('broadcast aspect ratios fit inside the viewport; transparent corners stay 
 test('no model or camera is required to finish onboarding; completion persists', async ({ page }) => {
   await page.goto('/');
   await page.locator('#onboarding-next').click();
+  if (await page.locator('[data-onboarding-panel="1"]').isVisible()) await page.locator('[data-onboarding-panel="1"] summary').click();
   await page.locator('#onboarding-skip').click();
   await page.locator('#onboarding-skip-camera').click();
   await page.locator('#onboarding-platform').selectOption('meeting');

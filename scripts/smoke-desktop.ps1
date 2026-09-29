@@ -1,4 +1,4 @@
-﻿$ErrorActionPreference = 'Stop'
+$ErrorActionPreference = 'Stop'
 if ($env:GITHUB_ACTIONS -ne 'true') { throw '完整安装链路验证仅允许在隔离的 GitHub Actions Windows runner 执行' }
 $installer = Get-ChildItem src-tauri/target/release/bundle/nsis/*-setup.exe | Select-Object -First 1
 $installDir = Join-Path $env:RUNNER_TEMP 'MiaoDesktopSmoke'
@@ -13,6 +13,8 @@ $pe = [BitConverter]::ToInt32($bytes, 0x3c)
 if ([BitConverter]::ToUInt16($bytes, $pe + 24 + 68) -ne 2) { throw '主程序仍使用控制台子系统' }
 # Match Playwright's foreground test environment: receiver processes must not
 # cause WebView2's native-window occlusion to suspend DOM polling in CI.
+# Use Windows' default graphics adapter; forced SwiftShader can starve dialog/CDP
+# work on small runners. Browser windows opened by link checks are cleaned up separately.
 $browserArguments = '--remote-debugging-port=9222 --disable-background-timer-throttling --disable-backgrounding-occluded-windows --disable-renderer-backgrounding --disable-features=CalculateNativeWinOcclusion'
 $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = $browserArguments
 # Elevated WebView2 150+ ignores environment overrides. Apply a scoped debugging
@@ -34,7 +36,10 @@ try {
   for ($i = 0; $i -lt 30; $i++) {
     try { $null = Invoke-RestMethod 'http://127.0.0.1:9222/json/version'; $cdpReady = $true; break } catch { Start-Sleep -Seconds 1 }
   }
-  if (-not $cdpReady) { throw 'WebView2 验证连接未就绪' }
+  if (-not $cdpReady) {
+    Get-CimInstance Win32_Process | Where-Object { $_.Name -in @('miao-motion.exe', 'msedgewebview2.exe') } | Select-Object Name, ProcessId, CommandLine | Format-List
+    throw 'WebView2 验证连接未就绪'
+  }
   node scripts/check-desktop-camera.mjs
   if ($LASTEXITCODE -ne 0) { throw '安装版端到端验证失败，请查看原始错误和接收端画面' }
   Write-Host '角色收帧通过，开始检查组件权限'

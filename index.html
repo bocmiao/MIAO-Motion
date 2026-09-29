@@ -28,7 +28,7 @@
         <div class="quick-start" aria-label="选择角色起点">
           <button id="quick-miao" class="primary-button" type="button">用喵小动</button>
           <button id="quick-import" class="soft-button" type="button">导入我的角色</button>
-          <a class="soft-button" href="./create-character.html" target="_blank" rel="noreferrer">教我做角色</a>
+          <button id="create-character" class="soft-button" type="button">创建我的角色</button>
         </div>
       </section>
 
@@ -53,6 +53,7 @@
             <button id="camera-toggle" class="secondary-button" type="button">开启摄像头</button>
           </section>
 
+          <section class="body-controls"><label class="body-option"><input id="body-tracking" type="checkbox">全身动捕（手臂、手指）</label><small id="body-status" role="status">身体和手部追踪未开启</small></section>
           <section class="tracking-card">
             <div class="tracking-title">
               <span id="tracking-dot" class="status-dot" data-state="idle"></span>
@@ -104,12 +105,13 @@
             </div>
             <div class="compact-actions">
               <button id="load-library-model" class="soft-button" type="button" disabled>载入角色</button>
+              <button id="edit-created-character" class="soft-button" type="button" disabled>继续编辑创建的角色</button>
               <button id="rename-model" class="soft-button" type="button" disabled>重命名</button>
               <button id="delete-library-model" class="soft-button" type="button" disabled>删除角色</button>
             </div>
           </section>
           <section class="motion-settings" aria-labelledby="motion-settings-title">
-            <strong id="motion-settings-title">动捕设置</strong><label><span>身体与手部（实验）</span><input id="body-tracking" type="checkbox"></label><small id="body-status" role="status">身体和手部追踪未开启</small>
+            <strong id="motion-settings-title">动捕设置</strong>
             <label>
               <span>摄像头</span>
               <select id="camera-select" aria-describedby="camera-help">
@@ -278,26 +280,21 @@
           </section>
 
           <section data-onboarding-panel="1" hidden>
-            <p class="onboarding-kicker">准备角色</p>
-            <h3>导入你的 VRM 文件</h3>
-            <div class="onboarding-action-card">
-              <div><strong>我已经有 VRM</strong><span id="onboarding-model-state">尚未导入角色</span></div>
-              <button id="onboarding-import" class="primary-button" type="button">选择 VRM</button>
+            <h3>选一个角色起点</h3>
+            <p id="onboarding-model-state" class="onboarding-success" role="status">尚未导入角色</p>
+            <div class="character-choices">
+              <button id="load-miao" class="primary-button" type="button">用喵小动<small>立即体验原创猫咪</small></button>
+              <button id="onboarding-import" class="soft-button" type="button">导入我的角色<small>选择本机 VRM 文件</small></button>
+              <button id="onboarding-create" class="soft-button" type="button">自己创建角色<small>起名、捏脸、换装并保存</small></button>
             </div>
-            <details>
-              <summary>我还没有角色，怎么制作？</summary>
-              <ol>
-                <li>下载安装免费的 <a href="https://store.steampowered.com/app/1486350/VRoid_Studio/?l=schinese" target="_blank" rel="noreferrer">VRoid Studio（中文介绍）</a>。</li>
-                <li>选择基础人物，调整发型、脸型和服装。</li>
-                <li>导出时选择 VRM 1.0，并确认模型允许用于直播。</li>
-                <li>回到这里点击“选择 VRM”。</li>
-              </ol>
+            <details><summary>更多选项与使用说明</summary>
+              <p><a href="./create-character.html" target="_blank" rel="noreferrer">进阶：用 VRoid 制作人形角色</a></p>
+              <p><a href="https://store.steampowered.com/app/1486350/VRoid_Studio/?l=schinese" target="_blank" rel="noreferrer">VRoid Studio（中文介绍）</a></p>
+              <p><a href="./miao-license.html" target="_blank" rel="noreferrer">喵小动使用说明</a></p>
+              <button id="load-example" class="soft-button" type="button" disabled>正在准备本地示例入口…</button>
+              <p>示例由 pixiv Inc. 提供。<a href="./example-license.html" target="_blank" rel="noreferrer">查看独立使用许可</a></p>
+              <button id="onboarding-skip" class="soft-button" type="button">先跳过角色，试试摄像头</button>
             </details>
-            <p><a href="./create-character.html" target="_blank" rel="noreferrer">教我一步步做自己的角色</a></p>
-            <button id="onboarding-skip" class="soft-button" type="button">先跳过角色，试试摄像头</button>
-            <button id="load-miao" class="primary-button" type="button">使用原创猫咪 · 喵小动</button><p>程序生成的原创猫咪，可换色、换部件、起名、导出与切换表情。角色许可见<a href="./miao-license.html" target="_blank" rel="noreferrer">使用说明</a>。</p><button id="load-example" class="soft-button" type="button" disabled>正在准备本地示例入口…</button>
-            <p>示例由 pixiv Inc. 提供，并非喵动原创。<a href="./example-license.html" target="_blank" rel="noreferrer">查看独立使用许可</a>；无需联网下载，也不会自动开启摄像头。</p>
-            <p class="onboarding-tip">模型检查会告诉你缺少哪些骨骼或表情；警告不一定影响其他动作。</p>
           </section>
 
           <section data-onboarding-panel="2" hidden>
@@ -307,6 +304,7 @@
               <div><strong>摄像头状态</strong><span id="onboarding-camera-state">尚未开启</span></div>
               <button id="onboarding-camera" class="secondary-button" type="button">开启摄像头</button>
             </div>
+            <label class="body-option"><input id="onboarding-body" type="checkbox">全身动捕（手臂、手指）</label><p id="body-recommendation">想让手臂和手指跟随时可开启；若明显卡顿可随时关闭。</p>
             <ul class="plain-checks">
               <li>浏览器询问权限时选择“允许”。</li>
               <li>如果提示被占用，先关闭会议软件或其他相机程序。</li>
@@ -349,6 +347,14 @@
         </footer>
       </div>
     </dialog>
+    <dialog id="character-creator" aria-labelledby="creator-title">
+      <header class="creator-header"><div><span id="creator-progress">第 1 / 8 步</span><h2 id="creator-title">起个名字</h2></div><button id="creator-close" class="soft-button" type="button">保存并返回</button></header>
+      <div class="creator-workspace"><section class="creator-controls"><fieldset id="creator-fields"><section data-creator-step="0"><p>这是你的第一只原创猫咪。先起个喜欢的名字，以后随时能改。</p><label>角色名字<input id="creator-name" data-field="name" maxlength="40" autocomplete="off"></label></section><section data-creator-step="1" hidden><label>角色底座<select id="creator-base" data-field="baseId"></select></label><div id="creator-presets" class="compact-actions"></div><label>头部大小<input type="range" data-field="proportions.head" min="0.8" max="1.25" step="0.01"><output>100%</output></label><label>身体宽度<input type="range" data-field="proportions.width" min="0.8" max="1.25" step="0.01"><output>100%</output></label></section><section data-creator-step="2" hidden><label>眼睛形状<select data-field="face.eyeShape"><option value="oval">椭圆眼</option><option value="round">圆眼睛</option><option value="gentle">眯眯眼</option></select></label><label>眼睛大小<input type="range" data-field="face.eyeSize" min="0.7" max="1.4" step="0.01"><output>100%</output></label><label>瞳孔颜色<input type="color" data-field="colors.eyes"></label><label>眉毛<select data-field="face.brows"><option value="natural">自然眉</option><option value="short">短眉毛</option><option value="bold">浓眉毛</option></select></label><label>嘴巴<select data-field="face.mouth"><option value="natural">自然嘴</option><option value="small">小嘴巴</option><option value="open">圆嘴巴</option></select></label></section><section data-creator-step="3" hidden><label>耳朵<select id="creator-ears" data-field="parts.ears"></select></label><label>尾巴<select id="creator-tail" data-field="parts.tail"></select></label><label>发型<select id="creator-hair" data-field="parts.hair"></select></label></section><section data-creator-step="4" hidden><label>衣服<select id="creator-clothes" data-field="parts.clothes"></select></label><p>配饰与衣服一起跟随身体动作。下一步可以调整颜色。</p></section><section data-creator-step="5" hidden><p>先试一套配色，再调整自己喜欢的颜色。</p><div id="creator-palettes" class="compact-actions"></div><label>毛发<input type="color" data-field="colors.fur"></label><label>衣服<input type="color" data-field="colors.outfit"></label><label>配饰<input type="color" data-field="colors.accent"></label><label>瞳孔<input type="color" data-field="colors.eyes"></label></section><section data-creator-step="6" hidden><p>转转头、眨眨眼，看看你的猫咪跟着动。</p><button id="creator-camera" class="secondary-button" type="button">开启 / 关闭摄像头</button><p id="creator-camera-state" role="status">尚未开启</p><p>没有摄像头也能继续保存；画面只在本机处理。</p></section><section data-creator-step="7" hidden><p>角色已经准备好了。</p><p>“保存到角色库”方便下次使用；“导出 VRM”可备份或导入其他支持 VRM 的软件。任何一步都能使用下方保存按钮。</p><p>作者和原角色许可保留。<a href="./miao-license.html" target="_blank">查看使用说明</a></p></section></fieldset>
+      <div class="creator-step-actions"><button id="creator-back" class="soft-button" type="button">上一步</button><button id="creator-random" class="soft-button" type="button">随机一个</button><button id="creator-next" class="primary-button" type="button">下一步</button></div></section>
+      <section id="creator-preview" aria-label="实时角色预览"><div class="creator-preview-actions"><span>拖动旋转 · 滚轮缩放</span><button id="creator-recenter" class="soft-button" type="button">重新居中</button></div></section></div>
+      <footer class="creator-footer"><p id="creator-status" role="status">草稿只保存在本机</p><div class="compact-actions"><button id="creator-new" class="text-button" type="button">放弃草稿并新建</button><button id="creator-save" class="primary-button" type="button">保存到角色库</button><button id="creator-export" class="soft-button" type="button">导出 VRM</button></div></footer>
+    </dialog>
+    <dialog id="help-dialog" aria-labelledby="help-title"><header><h2 id="help-title">使用说明</h2><button id="help-close" class="soft-button" type="button">返回角色</button></header><iframe id="help-frame" title="使用说明"></iframe></dialog>
     <dialog id="diagnostics-dialog" class="diagnostics-dialog" aria-labelledby="diagnostics-title">
       <div>
         <h2 id="diagnostics-title">本地诊断日志</h2>
