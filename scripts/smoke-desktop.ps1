@@ -2,6 +2,7 @@
 if ($env:GITHUB_ACTIONS -ne 'true') { throw '完整安装链路验证仅允许在隔离的 GitHub Actions Windows runner 执行' }
 $installer = Get-ChildItem src-tauri/target/release/bundle/nsis/*-setup.exe | Select-Object -First 1
 $installDir = Join-Path $env:RUNNER_TEMP 'MiaoDesktopSmoke'
+Write-Host '开始静默安装测试包'
 $install = Start-Process $installer.FullName -ArgumentList @('/S', "/D=$installDir") -PassThru -Wait
 if ($install.ExitCode -ne 0) { throw "NSIS 安装失败：$($install.ExitCode)" }
 $exe = Get-ChildItem $installDir -Filter 'miao-motion.exe' -Recurse | Select-Object -First 1
@@ -33,6 +34,7 @@ try {
   if (-not $cdpReady) { throw 'WebView2 验证连接未就绪' }
   node scripts/check-desktop-camera.mjs
   if ($LASTEXITCODE -ne 0) { throw '安装版角色画面未到达 DirectShow 接收器' }
+  Write-Host '角色收帧通过，开始检查组件权限'
   $camera = Get-ItemPropertyValue 'HKLM:\SOFTWARE\Classes\CLSID\{DA9CE316-89EF-4AD6-A156-459B271DF409}\InprocServer32' '(default)'
   $expected = Join-Path $env:ProgramFiles 'MIAO Motion Camera\softcam.dll'
   if ($camera -ne $expected) { throw "摄像头没有注册在受保护目录：$camera" }
@@ -52,7 +54,10 @@ try {
 }
 $uninstaller = Get-ChildItem $installDir -Filter '*uninstall*.exe' | Select-Object -First 1
 if (-not $uninstaller) { throw '找不到卸载器' }
-$remove = Start-Process $uninstaller.FullName -ArgumentList '/S' -PassThru -Wait
+Write-Host '开始静默卸载并核对注册项'
+$remove = Start-Process $uninstaller.FullName -ArgumentList '/S' -PassThru -WindowStyle Hidden
+if (-not $remove.WaitForExit(60_000)) { Stop-Process -Id $remove.Id -Force; throw '卸载超过 60 秒，可能存在阻塞的权限或文件占用提示' }
 if ($remove.ExitCode -ne 0) { throw '静默卸载失败' }
 if (Test-Path 'HKLM:\SOFTWARE\Classes\CLSID\{DA9CE316-89EF-4AD6-A156-459B271DF409}') { throw '卸载后虚拟摄像头仍注册在系统中' }
+Write-Host '安装、角色收帧、受保护权限和卸载注销均通过'
 Remove-Item Env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS -ErrorAction SilentlyContinue
