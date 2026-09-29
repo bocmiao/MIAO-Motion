@@ -147,7 +147,12 @@ export function setupStudioTools(renderer: WebGLRenderer, avatar: () => VRM | nu
         manager.setValue('oh', 0);
       }
     },
-    quality(now: number, auto: boolean) {
+    quality(now: number, auto: boolean, trackingBusy = false) {
+      if (auto && trackingBusy) {
+        windowStart = now; frames = slowWindows = fastWindows = 0;
+        element('auto-quality-status').textContent = '身体追踪期间保持清晰度；识别频率会随负载降低';
+        return;
+      }
       if (!auto || document.hidden) { windowStart = now; frames = slowWindows = fastWindows = 0; return; }
       frames++;
       if (!windowStart) windowStart = now;

@@ -29,6 +29,18 @@ nodes[9].children = [10];
 nodes[11].children = [12];
 nodes[12].children = [13];
 nodes[14].mesh = 0;
+for (const [side, hand, sign] of [['left',15,1],['right',16,-1]]) {
+  for (const finger of ['Thumb','Index','Middle','Ring','Little']) {
+    let parent = hand;
+    for (const segment of (finger === 'Thumb' ? ['Metacarpal','Proximal','Distal'] : ['Proximal','Intermediate','Distal'])) {
+      const index = nodes.length;
+      nodeNames.push(`${side}${finger}${segment}`);
+      nodes.push({ name: nodeNames[index], translation: [sign * 0.03,0,0] });
+      (nodes[parent].children ??= []).push(index);
+      parent = index;
+    }
+  }
+}
 
 const positions = new Float32Array([-0.3, -0.2, 0, 0.3, -0.2, 0, 0.3, 0.3, 0, -0.3, -0.2, 0, 0.3, 0.3, 0, -0.3, 0.3, 0]);
 const binary = Buffer.from(positions.buffer);
@@ -82,6 +94,6 @@ writeGlb('minimal-avatar.vrm', gltf);
 const vrm0 = structuredClone(gltf);
 vrm0.nodes.forEach(node => { node.translation[0] *= -1; });
 vrm0.extensionsUsed = ['VRM'];
-vrm0.extensions = { VRM: { specVersion: '0.0', meta: { title: 'MIAO VRM0 test fixture', version: '1', author: 'MIAO Motion contributors', allowedUserName: 'Everyone', licenseName: 'CC0' }, humanoid: { humanBones: nodeNames.map((bone, node) => ({ bone, node, useDefaultValues: true })) } } };
+vrm0.extensions = { VRM: { specVersion: '0.0', meta: { title: 'MIAO VRM0 test fixture', version: '1', author: 'MIAO Motion contributors', allowedUserName: 'Everyone', licenseName: 'CC0' }, humanoid: { humanBones: nodeNames.map((bone, node) => ({ bone: bone.replace('ThumbProximal', 'ThumbIntermediate').replace('ThumbMetacarpal', 'ThumbProximal'), node, useDefaultValues: true })) } } };
 writeGlb('minimal-avatar-v0.vrm', vrm0);
 writeFileSync(resolve(fixtureDir, 'corrupt-avatar.vrm'), 'This is intentionally not a GLB/VRM file.\n');

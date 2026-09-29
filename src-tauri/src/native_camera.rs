@@ -52,13 +52,18 @@ pub fn native_camera_frame(request: tauri::ipc::Request<'_>, state: tauri::State
 }
 
 #[tauri::command]
-pub fn native_camera_install(app: tauri::AppHandle, remove: bool) -> Result<(), String> {
-    use std::os::windows::ffi::OsStrExt;
-    let path: Vec<u16> = component(&app, "camera-register.exe")?.as_os_str().encode_wide().chain(Some(0)).collect();
-    let wide = |s: &str| s.encode_utf16().chain(Some(0)).collect::<Vec<_>>();
-    let action = wide(if remove { "unregister" } else { "register" });
-    let verb = wide("runas");
-    let result = unsafe { windows_sys::Win32::UI::Shell::ShellExecuteW(std::ptr::null_mut(), verb.as_ptr(), path.as_ptr(), action.as_ptr(), std::ptr::null(), 1) };
-    if result as usize <= 32 { return Err("Windows 未启动安装程序；可能取消了权限确认".into()); }
-    Ok(())
+pub async fn native_camera_install(app: tauri::AppHandle, remove: bool) -> Result<(), String> {
+    use std::os::windows::process::CommandExt;
+    let helper = component(&app, "camera-register.exe")?;
+    let status = tauri::async_runtime::spawn_blocking(move || {
+        std::process::Command::new(helper)
+            .arg(if remove { "unregister-silent" } else { "register-silent" })
+            .creation_flags(0x08000000).status()
+    }).await.map_err(|e| e.to_string())?
+      .map_err(|_| "无法启动摄像头安装程序，请重新安装喵动")?;
+    match status.code() {
+        Some(0) => Ok(()),
+        Some(1223) => Err("已取消 Windows 权限确认，未完成操作".into()),
+        code => Err(format!("摄像头操作失败（{}），请关闭接收软件后重试", code.unwrap_or(-1))),
+    }
 }

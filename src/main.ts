@@ -1411,7 +1411,7 @@ const animate = () => {
   bodyTracking.tick(cameraPreview, now, Boolean(cameraStream));
   applyMotion(delta);
   studio.apply();
-  studio.quality(now, settings.renderQuality === 'auto');
+  studio.quality(now, settings.renderQuality === 'auto', bodyTracking.active());
   currentVrm?.update(delta);
   controls.update();
   renderer.render(scene, camera);

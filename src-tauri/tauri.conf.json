@@ -61,7 +61,8 @@
         "languages": [
           "SimpChinese",
           "English"
-        ]
+        ],
+        "installerHooks": "./windows/hooks.nsh"
       }
     },
     "resources": [

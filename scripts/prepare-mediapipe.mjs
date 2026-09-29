@@ -40,6 +40,7 @@ const downloadModel = async () => {
 };
 
 await mkdir(output, { recursive: true });
+await copyFile(resolve(root, 'node_modules/@mediapipe/tasks-vision/vision_bundle.js'), resolve(output, 'vision_bundle.js'));
 await Promise.all(wasmFiles.map((name) => copyFile(
   resolve(root, 'node_modules/@mediapipe/tasks-vision/wasm', name),
   resolve(output, name),

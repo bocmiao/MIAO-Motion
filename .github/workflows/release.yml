@@ -26,6 +26,8 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npm run desktop:build -- -- --locked
+      - name: Install DirectShow test receiver
+        run: choco install ffmpeg --no-progress -y
       - name: Smoke-test installed application
         shell: pwsh
         run: ./scripts/smoke-desktop.ps1
@@ -34,10 +36,7 @@ jobs:
         run: |
           ./scripts/package-portable.ps1 -Output release
           Copy-Item src-tauri/target/release/bundle/nsis/*-setup.exe release/
-          Get-ChildItem release -File | Where-Object { $_.Extension -in '.exe', '.zip' } | ForEach-Object {
-            $hash = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower()
-            "$hash  $($_.Name)" | Set-Content "$($_.FullName).sha256" -Encoding ascii
-          }
+          node scripts/release-checksums.mjs release
       - name: Smoke-test extracted portable package
         shell: pwsh
         run: ./scripts/smoke-portable.ps1 -Zip release/MIAO-Motion-portable.zip

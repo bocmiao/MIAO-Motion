@@ -13,8 +13,10 @@ export function setupNativeCamera(canvas: HTMLCanvasElement, ready: () => boolea
     control.disabled = !isTauri();
     control.addEventListener('click', async () => {
       if (remove) stop();
-      try { await invoke('native_camera_install', { remove }); status.textContent = '请完成 Windows 权限确认，并查看安装程序的结果。'; }
+      control.disabled = true; status.textContent = '等待 Windows 权限确认…画面可以继续使用。';
+      try { await invoke('native_camera_install', { remove }); status.textContent = remove ? '虚拟摄像头已注销' : '虚拟摄像头已安装，请重新打开接收软件'; }
       catch (error) { status.textContent = String(error); }
+      finally { control.disabled = false; }
     });
   }
   button.disabled = !isTauri();

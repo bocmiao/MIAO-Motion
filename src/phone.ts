@@ -1,24 +1,6 @@
 import { invoke, isTauri } from '@tauri-apps/api/core';
-import { Euler, Quaternion } from 'three';
-
-export function parsePhonePacket(packet: string) {
-  if (packet.length > 8192) return null;
-  const categories: { categoryName: string; score: number; index: number; displayName: string }[] = [];
-  let head: Quaternion | null = null;
-  for (const field of packet.split('|')) {
-    const expression = /^([a-zA-Z]{2,40})-([0-9]+(?:\.[0-9]+)?)$/.exec(field);
-    if (expression) {
-      const score = Math.min(1, Math.max(0, Number(expression[2]) / 100));
-      if (Number.isFinite(score)) categories.push({ categoryName: expression[1]!, score, index: categories.length, displayName: '' });
-    } else if (field.startsWith('=head#')) {
-      const angles = field.slice(6).split(',').slice(0, 3).map(Number);
-      if (angles.length === 3 && angles.every(x => Number.isFinite(x) && Math.abs(x) <= 360)) {
-        head = new Quaternion().setFromEuler(new Euler(angles[0]! * Math.PI / 180, -angles[1]! * Math.PI / 180, -angles[2]! * Math.PI / 180, 'YXZ'));
-      }
-    }
-  }
-  return categories.length && head ? { categories, head } : null;
-}
+import { parsePhonePacket } from './phone-packet.mjs';
+export { parsePhonePacket };
 
 export function setupPhone(receive: (packet: NonNullable<ReturnType<typeof parsePhonePacket>>) => void) {
   const button = document.getElementById('phone-toggle') as HTMLButtonElement;

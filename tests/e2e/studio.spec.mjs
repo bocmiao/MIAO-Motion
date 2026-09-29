@@ -116,7 +116,8 @@ test('offline body and hand engines start and release on camera stop', async ({ 
   await page.locator('.advanced-settings > summary').click();
   await page.locator('#body-tracking').check();
   await page.locator('#camera-toggle').click();
-  await expect(page.locator('#body-status')).toContainText(/身体.*手部/, { timeout: 60_000 });
+  await expect(page.locator('#body-status')).toHaveAttribute('data-state', 'ready', { timeout: 60_000 });
+  await expect.poll(() => page.locator('#body-status').getAttribute('data-frames'), { timeout: 30_000 }).not.toBe('0');
   await expect(page.locator('#body-tracking')).toBeChecked();
   await page.locator('#camera-toggle').click();
   await expect(page.locator('#body-status')).toHaveText('身体和手部追踪未开启');
@@ -160,7 +161,7 @@ test('native bridge sends bounded binary frames and releases on stop; phone driv
       if (command === 'native_camera_frame') { window.__nativeFrames.push({ length: args.byteLength, bytes: Array.from(args.slice(0,3)) }); return true; }
       if (command === 'native_camera_stop') window.__nativeStops++;
       if (command === 'phone_start') return '192.168.1.1';
-      if (command === 'phone_poll') return 'eyeBlinkLeft-20|jawOpen-40|=head#0,5,0,0,0,0|';
+      if (command === 'phone_poll') return 'eyeBlink_L-20|jawOpen-40|=head#0,5,0,0,0,0|';
       return null;
     } };
   });

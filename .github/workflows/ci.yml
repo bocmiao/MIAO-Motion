@@ -184,9 +184,8 @@ jobs:
             echo "Existing $tag is preserved; bump version to publish a new beta."
             exit 0
           fi
-          for asset in beta-assets/*.exe; do
-            (cd beta-assets && sha256sum "$(basename "$asset")" > "$(basename "$asset").sha256")
-          done
+          node scripts/release-checksums.mjs beta-assets
+          (cd beta-assets && sha256sum -c ./*.sha256)
           gh release create "$tag" beta-assets/* --target "$GITHUB_SHA" --prerelease --title "喵动 $tag 测试版" --notes-file docs/BETA_RELEASE_NOTES.md
 
   windows-desktop:
@@ -218,6 +217,13 @@ jobs:
       - name: Install, launch and uninstall NSIS package
         shell: pwsh
         run: ./scripts/smoke-desktop.ps1
+      - name: Upload native receiver evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-camera-evidence-${{ github.run_id }}
+          path: test-results/desktop-camera-*.png
+          if-no-files-found: ignore
       - uses: actions/upload-artifact@v4
         with:
           name: MIAO-Motion-Tauri-Windows
