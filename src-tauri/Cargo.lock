@@ -1767,6 +1767,7 @@ name = "miao-motion"
 version = "0.3.0"
 dependencies = [
  "libloading 0.8.9",
+ "serde",
  "tauri",
  "tauri-build",
  "windows-sys 0.61.2",

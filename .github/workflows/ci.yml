@@ -214,8 +214,9 @@ jobs:
         shell: pwsh
         run: ./scripts/smoke-native-camera.ps1
       - run: npm run desktop:build -- -- --locked
-      - name: Install, launch and uninstall NSIS package
-        timeout-minutes: 5
+      - name: Install, launch, reinstall, upgrade and uninstall NSIS package
+        # Includes camera component lifecycle regressions (see scripts/smoke-desktop.ps1).
+        timeout-minutes: 12
         shell: pwsh
         run: ./scripts/smoke-desktop.ps1
       - name: Upload native receiver evidence

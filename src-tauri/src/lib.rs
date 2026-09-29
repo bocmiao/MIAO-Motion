@@ -14,7 +14,7 @@ fn trusted_origin(url: &tauri::Url) -> bool {
 pub fn run() {
     let builder = tauri::Builder::default().manage(phone::Phone::default());
     #[cfg(windows)]
-    let builder = builder.manage(native_camera::Camera::default()).invoke_handler(tauri::generate_handler![phone::phone_start, phone::phone_stop, phone::phone_poll, native_camera::native_camera_start, native_camera::native_camera_stop, native_camera::native_camera_frame, native_camera::native_camera_install]);
+    let builder = builder.manage(native_camera::Camera::default()).invoke_handler(tauri::generate_handler![phone::phone_start, phone::phone_stop, phone::phone_poll, native_camera::native_camera_start, native_camera::native_camera_stop, native_camera::native_camera_frame, native_camera::native_camera_install, native_camera::native_camera_component_state]);
     #[cfg(not(windows))]
     let builder = builder.invoke_handler(tauri::generate_handler![phone::phone_start, phone::phone_stop, phone::phone_poll]);
     builder

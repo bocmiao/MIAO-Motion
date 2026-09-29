@@ -2,6 +2,10 @@ $ErrorActionPreference = 'Stop'
 $reg = (Resolve-Path 'native/build/Release/camera-register.exe').Path
 $registration = Start-Process -FilePath $reg -ArgumentList 'register-silent' -Wait -PassThru -WindowStyle Hidden
 if ($registration.ExitCode -ne 0) { throw "原生摄像头注册失败：$($registration.ExitCode)" }
+$userKey = 'HKCU:\Software\MIAO Motion\Camera'
+if ((Get-ItemProperty -LiteralPath $userKey -Name 'RegisteredByUser' -ErrorAction SilentlyContinue).RegisteredByUser -ne 1) {
+  throw '注册成功后没有写入当前用户的 RegisteredByUser 标记'
+}
 $sender = $null
 try {
   if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue)) { throw '验证接收帧需要 ffmpeg' }
@@ -16,4 +20,7 @@ try {
   if ($sender -and -not $sender.HasExited) { Stop-Process -Id $sender.Id -Force }
   $removal = Start-Process -FilePath $reg -ArgumentList 'unregister-silent' -Wait -PassThru -WindowStyle Hidden
   if ($removal.ExitCode -ne 0) { throw "原生摄像头卸载失败：$($removal.ExitCode)" }
+}
+if ($null -ne (Get-ItemProperty -LiteralPath $userKey -Name 'RegisteredByUser' -ErrorAction SilentlyContinue).RegisteredByUser) {
+  throw '注销成功后没有清除当前用户的 RegisteredByUser 标记'
 }
