@@ -1,18 +1,32 @@
 export const releasesUrl = 'https://github.com/bocmiao/MIAO-Motion/releases';
 export const releasesApi = 'https://api.github.com/repos/bocmiao/MIAO-Motion/releases?per_page=30';
 
-/** @param {string} tag */
+/**
+ * Major, minor, patch and a stability flag: a stable release (1) ranks above
+ * the beta (0) that shares its number, so beta users are offered 0.3.1 after 0.3.1-beta.
+ * @param {string} tag
+ */
 export function versionParts(tag) {
-  const match = /^v?(\d+)\.(\d+)\.(\d+)(?:-beta)?$/.exec(tag);
-  return match ? match.slice(1).map(Number) : null;
+  const match = /^v?(\d+)\.(\d+)\.(\d+)(-beta)?$/.exec(tag);
+  return match ? [...match.slice(1, 4).map(Number), match[4] ? 0 : 1] : null;
 }
 
 /** @param {string} candidate @param {string} current */
 export function isNewer(candidate, current) {
   const a = versionParts(candidate), b = versionParts(current);
   if (!a || !b) return false;
-  for (let i = 0; i < 3; i++) if (a[i] !== b[i]) return (a[i] ?? 0) > (b[i] ?? 0);
+  for (let i = 0; i < 4; i++) if (a[i] !== b[i]) return (a[i] ?? 0) > (b[i] ?? 0);
   return false;
+}
+
+/**
+ * Every build published so far ships on the beta channel, while package.json carries the
+ * bare number. Treat the running app as that number's beta so a same-numbered stable
+ * release is still reported as an update.
+ * @param {string} appVersion
+ */
+export function installedTag(appVersion) {
+  return /-beta$/.test(appVersion) ? appVersion : `${appVersion}-beta`;
 }
 
 /** @param {unknown} data */
