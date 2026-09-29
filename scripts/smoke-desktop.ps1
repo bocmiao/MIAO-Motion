@@ -55,8 +55,10 @@ try {
 $uninstaller = Get-ChildItem $installDir -Filter '*uninstall*.exe' | Select-Object -First 1
 if (-not $uninstaller) { throw '找不到卸载器' }
 Write-Host '开始静默卸载并核对注册项'
-$remove = Start-Process $uninstaller.FullName -ArgumentList '/S' -PassThru -WindowStyle Hidden
-if (-not $remove.WaitForExit(60000)) { Stop-Process -Id $remove.Id -Force; throw '卸载超过 60 秒，可能存在阻塞的权限或文件占用提示' }
+# NSIS launches a temporary child uninstaller. -Wait includes descendants;
+# Process.WaitForExit() can return before the real uninstaller finishes.
+# The CI step's five-minute timeout bounds the complete test.
+$remove = Start-Process $uninstaller.FullName -ArgumentList '/S' -PassThru -Wait -WindowStyle Hidden
 if ($remove.ExitCode -ne 0) { throw '静默卸载失败' }
 if (Test-Path 'HKLM:\SOFTWARE\Classes\CLSID\{DA9CE316-89EF-4AD6-A156-459B271DF409}') { throw '卸载后虚拟摄像头仍注册在系统中' }
 Write-Host '安装、角色收帧、受保护权限和卸载注销均通过'
