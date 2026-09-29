@@ -1,10 +1,20 @@
 <!doctype html><html lang="zh-CN"><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="./help.css"><title>下载喵动测试版</title><main>
-<h1>下载喵动 · Windows 测试版</h1><p>免费、本地处理。当前测试版未签名，真实摄像头、OBS 和 Windows 用户桌面兼容性仍待确认。</p>
+<h1>下载喵动 · Windows 测试版</h1><p>免费、本地处理。当前是测试版，程序未签名；真实摄像头、直播软件和不同电脑的兼容性仍在确认中。</p>
+<p class="note warn"><strong>安全提醒：</strong>v0.3.0-beta 及更早版本的虚拟摄像头组件存在安全隐患，请使用 v0.3.1-beta 或更新版本。如果你在旧版里装过“摄像头组件”，升级前请先在旧版的“原生虚拟摄像头（Windows）”里点“卸载摄像头组件”，再安装新版。已经直接卸载了旧版、会议软件里还残留“MIAO Motion Camera”的，安装新版后在同一位置点“卸载摄像头组件”即可清理。</p>
 <p><a href="https://github.com/bocmiao/MIAO-Motion/releases">打开官方下载列表</a>：选择标为 Pre-release 的最新测试版。没有附件时表示发布仍在构建，请勿下载源码 ZIP 当作程序。</p>
 <h2 id="release-status" role="status">正在查询已发布版本…</h2>
 <ul id="release-files"></ul>
 <noscript>请使用上方官方下载列表下载程序与同名校验文件。</noscript>
-<ol><li>先体验角色、摄像头与 OBS，推荐免安装的 MIAO-Motion-portable.zip；需要实验性原生虚拟摄像头或 iFacialMocap 手机面捕时，选择 setup.exe 安装版。便携版不含这两项原生接入。</li><li>便携版：右键“全部解压缩”，然后双击“双击启动喵动.bat”；不要在 ZIP 预览中运行。</li><li>同时下载同名 .sha256 文件。PowerShell 中运行 <code>Get-FileHash '下载文件路径' -Algorithm SHA256</code>，与校验文件里的值逐字核对。</li></ol>
-<p>虚拟摄像头组件安装与注销需要管理员权限；公司、学校电脑请遵守管理员策略。当前只有 64 位 DirectShow 组件，32 位或 UWP 接收端请用 OBS 中转。</p><p>未签名程序可能被系统安全策略阻止。不要关闭杀毒软件或智能应用控制；可先使用源码/浏览器版，或等待签名版。国内镜像尚未配置，不提供未经确认的网盘链接。</p>
+<h2>下载哪一个？</h2>
+<table><thead><tr><th>功能</th><th>便携版（MIAO-Motion-portable.zip）</th><th>安装版（…-setup.exe）</th></tr></thead><tbody>
+<tr><td>角色、摄像头动捕、捏人与换色、语音嘴型、身体/手部</td><td>✓</td><td>✓</td></tr>
+<tr><td>窗口捕获接入 OBS / 直播伴侣、自动配置 OBS</td><td>✓</td><td>✓</td></tr>
+<tr><td>原生虚拟摄像头 MIAO Motion Camera（实验）</td><td>✗（可用 OBS 虚拟摄像头中转）</td><td>✓</td></tr>
+<tr><td>手机面捕 iFacialMocap（实验）</td><td>✗</td><td>✓</td></tr>
+<tr><td>需要安装</td><td>不需要，解压即用，在浏览器中运行</td><td>需要；装摄像头组件时要管理员确认</td></tr>
+</tbody></table>
+<p>只想先体验角色、摄像头和 OBS，选便携版；要让会议软件直接选喵动当摄像头，或用 iPhone 面捕，选安装版。两个版本的角色和设置不共享，换版本后需要重新导入角色，设置可以导出再导入。</p>
+<ol><li>便携版：右键“全部解压缩”，然后双击“双击启动喵动.bat”；不要在 ZIP 预览中运行。</li><li>安装版：双击 setup.exe 按提示安装。</li><li>同时下载同名 .sha256 校验文件。在开始菜单搜索“PowerShell”打开，运行 <code>Get-FileHash '下载文件路径' -Algorithm SHA256</code>（可把文件拖进窗口得到路径），把显示的一长串字符与校验文件里的值逐字核对，完全一致才说明文件完整、没被改动。</li></ol>
+<p>虚拟摄像头组件安装与注销需要管理员权限；公司、学校电脑请遵守管理员策略。当前只有 64 位 DirectShow 组件，32 位或 UWP 接收端请用 OBS 中转。</p><p>程序未签名，运行时可能出现“Windows 已保护你的电脑”或“未知发布者”。请先核对上面的校验值，确认一致再选择继续；<strong>不要关闭杀毒软件或智能应用控制</strong>。组织策略禁止运行时请联系管理员，或等待签名版。国内镜像尚未配置，不提供未经确认的网盘链接。</p>
 <p><a href="./help.html">使用帮助</a> · <a href="./create-character.html">从零做角色</a> · <a href="./platforms.html">接入直播平台</a></p>
 <script type="module" src="./download.js"></script></main></html>

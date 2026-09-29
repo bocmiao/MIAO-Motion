@@ -3,6 +3,9 @@ body { max-width: 860px; margin:auto; padding:32px 22px 72px }
 h1,h2 { line-height:1.25 }
 h2 { margin-top:2em; color:#b8c8ff }
 .note { padding:14px 18px; border-left:4px solid #7e9cff; background:#1a2032; border-radius:8px }
+.warn { border-left-color:#ffb454; background:#2b2416 }
+h3 { color:#d6defc; margin-top:1.4em }
+.yes { list-style:none; padding-left:0 }
 li { margin:.45em 0 }
 code { background:#242b40; padding:.12em .35em; border-radius:4px }
 a { color:#9db4ff }
@@ -10,3 +13,5 @@ table { width:100%; border-collapse:collapse }
 th,td { padding:9px; border:1px solid #39425d; text-align:left }
 
 .tutorial-image { max-width: 100%; height: auto; }
+code { overflow-wrap:anywhere }
+@media (max-width: 600px) { body { padding:24px 16px 56px } table { display:block; overflow-x:auto } }
