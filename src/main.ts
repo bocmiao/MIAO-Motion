@@ -947,7 +947,7 @@ const exportDiagnosticReport = () => {
   } catch (error) {
     graphics = { error: sanitizeDiagnosticMessage(error) };
   }
-  downloadJson(`miao-motion-diagnostics-${new Date().toISOString().slice(0, 10)}.json`, {
+  void downloadJson(`miao-motion-diagnostics-${new Date().toISOString().slice(0, 10)}.json`, {
     generatedAt: new Date().toISOString(),
     privacy: '不包含摄像头画面、模型内容、文件路径或设备编号',
     environment: { browser: coarseUserAgent(navigator.userAgent), language: navigator.language, online: navigator.onLine },
@@ -958,7 +958,6 @@ const exportDiagnosticReport = () => {
     tracking: { status: trackingStatus.textContent, faceVisible },
     recentEvents: diagnosticEvents,
   });
-  showToast('诊断报告已下载，可在反馈问题时附上');
 };
 
 const runPreflight = async () => {
