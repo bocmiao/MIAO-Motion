@@ -15,7 +15,7 @@ if ([BitConverter]::ToUInt16($bytes, $pe + 24 + 68) -ne 2) { throw '主程序仍
 # cause WebView2's native-window occlusion to suspend DOM polling in CI.
 # Hosted runners have no physical GPU. Exercise the installed WebView2 with a deterministic
 # software renderer, including actual native dialogs/OLE/IPC; production GPU settings are unchanged.
-$browserArguments = '--remote-debugging-port=9222 --use-angle=swiftshader --enable-unsafe-swiftshader --disable-gpu-watchdog --disable-background-timer-throttling --disable-backgrounding-occluded-windows --disable-renderer-backgrounding --disable-features=CalculateNativeWinOcclusion'
+$browserArguments = '--remote-debugging-port=9222 --use-angle=swiftshader --enable-unsafe-swiftshader --disable-background-timer-throttling --disable-backgrounding-occluded-windows --disable-renderer-backgrounding --disable-features=CalculateNativeWinOcclusion'
 $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = $browserArguments
 # Elevated WebView2 150+ ignores environment overrides. Apply a scoped debugging
 # policy only inside disposable GitHub runners, never on a developer/user machine.
@@ -36,7 +36,10 @@ try {
   for ($i = 0; $i -lt 30; $i++) {
     try { $null = Invoke-RestMethod 'http://127.0.0.1:9222/json/version'; $cdpReady = $true; break } catch { Start-Sleep -Seconds 1 }
   }
-  if (-not $cdpReady) { throw 'WebView2 验证连接未就绪' }
+  if (-not $cdpReady) {
+    Get-CimInstance Win32_Process | Where-Object { $_.Name -in @('miao-motion.exe', 'msedgewebview2.exe') } | Select-Object Name, ProcessId, CommandLine | Format-List
+    throw 'WebView2 验证连接未就绪'
+  }
   node scripts/check-desktop-camera.mjs
   if ($LASTEXITCODE -ne 0) { throw '安装版端到端验证失败，请查看原始错误和接收端画面' }
   Write-Host '角色收帧通过，开始检查组件权限'
