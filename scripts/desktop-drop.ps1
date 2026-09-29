@@ -1,4 +1,4 @@
-param([string]$File, [int]$X, [int]$Y)
+﻿param([string]$File, [int]$X, [int]$Y)
 $ErrorActionPreference = 'Stop'
 if ($env:GITHUB_ACTIONS -ne 'true') { throw '仅允许隔离 Windows CI 执行原生文件拖放' }
 $source = (Resolve-Path -LiteralPath $File).Path

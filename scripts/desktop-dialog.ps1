@@ -1,4 +1,4 @@
-param([string]$Destination, [switch]$Cancel)
+﻿param([string]$Destination, [switch]$Cancel)
 $ErrorActionPreference = 'Stop'
 if ($env:GITHUB_ACTIONS -ne 'true') { throw '仅允许隔离 Windows CI 操作系统保存窗口' }
 Add-Type -AssemblyName UIAutomationClient
