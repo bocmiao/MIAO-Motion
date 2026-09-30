@@ -1,6 +1,6 @@
 # 项目现状（第八轮整改 · v0.3.2-beta）
 
-更新：2026-09-30。第七、八轮整改已随 [v0.3.2-beta](https://github.com/bocmiao/MIAO-Motion/releases/tag/v0.3.2-beta) 发布，完整 CI 通过，安装包及便携包的文件名与 SHA-256 已下载核对；旧 v0.3.1-beta 安装包不含本轮修复。逐项说明见 [第八轮整改记录](ROUND8_REMEDIATION.md)，执行结果见 [验证状态](VALIDATION_STATUS.md)。
+更新：2026-09-30。第七、八轮整改已随 [v0.3.2-beta](https://github.com/bocmiao/MIAO-Motion/releases/tag/v0.3.2-beta) 发布，完整 CI 通过，安装包及便携包的文件名与 SHA-256 已下载核对；旧 v0.3.1-beta 安装包不含本轮修复。逐项说明见 [第八轮整改记录](ROUND8_REMEDIATION.md)，执行结果见 [验证状态](VALIDATION_STATUS.md)。复核结果与剩余问题见 [第九轮审计报告](claude审计报告-第九轮.md)。
 
 ## 本轮变化
 
