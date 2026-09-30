@@ -11,6 +11,8 @@ using System.Runtime.InteropServices;
 public static class NativeSaveDialog {
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr window);
   [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] public static extern IntPtr GetWindow(IntPtr window, uint command);
+  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr window, out int processId);
   [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr window, uint message, IntPtr wparam, IntPtr lparam);
   [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern IntPtr SendMessage(IntPtr window, uint message, IntPtr wparam, StringBuilder text);
   [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr window, uint message, IntPtr wparam, IntPtr lparam);
@@ -32,6 +34,11 @@ if (-not $dialog) {
   foreach ($window in $windows) { Write-Host "Native window: $($window.Current.Name) / PID $($window.Current.ProcessId)" }
   throw '没有出现系统另存为窗口'
 }
+$owner = [NativeSaveDialog]::GetWindow([IntPtr]$dialog.Current.NativeWindowHandle, 4)
+$ownerProcess = 0
+$null = [NativeSaveDialog]::GetWindowThreadProcessId($owner, [ref]$ownerProcess)
+if ($owner -eq [IntPtr]::Zero -or $ownerProcess -ne $dialog.Current.ProcessId) { throw '另存为窗口没有绑定喵动窗口' }
+Write-Host '另存为窗口已绑定喵动窗口'
 if ($Cancel) {
   if (-not [NativeSaveDialog]::PostMessage([IntPtr]$dialog.Current.NativeWindowHandle, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero)) { throw '无法关闭另存为窗口' }
   exit 0
