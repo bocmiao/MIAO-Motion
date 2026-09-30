@@ -61,7 +61,7 @@ test('creation renders, resumes drafts, saves one library entry, and reimports e
   await expect(page.locator('#creator-status')).toContainText('草稿已保存');
   await page.screenshot({ path: test.info().outputPath('creator-desktop.png') });
   await page.locator('#creator-close').click();
-  await page.reload(); await page.locator('#onboarding-later').click();
+  await page.reload(); await expect(page.locator('#onboarding-dialog')).not.toBeVisible();
   await page.locator('#create-character').click();
   await expect(page.locator('#creator-ears')).toHaveValue('folded');
   await page.locator('#creator-save').click();
@@ -114,7 +114,7 @@ test('pixiv material menu contains no English or separate outlines', async ({ pa
   const lastPart = String(names.length - 1);
   await page.locator('#avatar-material').selectOption(lastPart);
   await page.locator('#avatar-color').fill('#ba4d71');
-  await page.reload(); await page.locator('#onboarding-later').click();
+  await page.reload(); await expect(page.locator('#onboarding-dialog')).not.toBeVisible();
   await expect(page.locator('#stage')).toHaveAttribute('data-render-ready', 'true');
   await expect(page.locator('#import-model')).toBeEnabled();
   await page.locator('.studio-settings > summary').click();

@@ -1,4 +1,4 @@
-import { materialLabel, withoutOutline } from './material-labels';
+import { materialLabels, withoutOutline } from './material-labels';
 import { Color, Material, Mesh, WebGLRenderer } from 'three';
 import type { VRM } from '@pixiv/three-vrm';
 import { installedTag, latestRelease, isNewer } from '../public/release-info.js';
@@ -146,7 +146,7 @@ export function setupStudioTools(renderer: WebGLRenderer, avatar: () => VRM | nu
           }
         }
       } catch { /* A damaged preference must not prevent loading a character. */ }
-      materialSelect.replaceChildren(...materials.map((m, i) => new Option(materialLabel(m.name, i), String(i))));
+      materialSelect.replaceChildren(...materialLabels(materials.map(m => m.name)).map((label, i) => new Option(label, String(i))));
       materialSelect.disabled = !materials.length; selectColor();
       expressionSelect.replaceChildren(new Option('自然 · 0', ''), ...expressions.map((name, i) => {
         const option = new Option(`${['开心', '生气', '难过', '放松', '惊讶'][i]} · ${i + 1}`, name);

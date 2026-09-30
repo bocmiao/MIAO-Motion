@@ -1,6 +1,6 @@
 Rust dependencies for Windows desktop (including build-time dependencies).
 
-Cargo.lock SHA-256: e5a02e156d4ae40446b0e601f7b25cf32af842d64a0908f8b0b1ca2ad183b88c
+Cargo.lock SHA-256: cff9929933f750df8a45e615fccb17e9eebd0e72e52b0b54785b9e3fd5171b1e
 
 ===== adler2@2.0.1 (0BSD OR MIT OR Apache-2.0) =====
 LICENSE-0BSD

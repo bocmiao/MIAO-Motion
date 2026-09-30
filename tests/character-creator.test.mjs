@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import validator from 'gltf-validator';
 import { generateMiao } from '../src/generate-miao.mjs';
 import { normalizeCharacter, characterBases } from '../src/character-spec.ts';
-import { materialLabel } from '../src/material-labels.ts';
+import { materialLabel, materialLabels } from '../src/material-labels.ts';
 import { parseSettings, createSettingsProfile, parseSettingsProfile } from '../src/app-utils.mjs';
 
 test('every cat part and bounded recipe generates a valid skinned VRM with resumable metadata', async () => {
@@ -14,6 +14,7 @@ test('every cat part and bounded recipe generates a valid skinned VRM with resum
     assert.equal(issues.numErrors, 0, JSON.stringify(issues.messages.filter(m => m.severity === 0)));
     const doc = JSON.parse(new TextDecoder().decode(bytes.subarray(20, 20 + new DataView(bytes.buffer).getUint32(12, true))));
     assert.deepEqual(doc.extras.miaoCharacter, recipe);
+    for (const {node} of Object.values(doc.extensions.VRMC_vrm.humanoid.humanBones)) assert.deepEqual(doc.nodes[node].scale ?? [1,1,1], [1,1,1]);
     assert.ok(doc.skins[0].joints.length >= 17);
     assert.ok(doc.meshes.some(mesh => mesh.primitives[0].attributes.WEIGHTS_0 !== undefined));
     assert.ok(doc.extensions.VRMC_vrm.expressions.preset.blinkLeft);
@@ -26,7 +27,8 @@ test('every cat part and bounded recipe generates a valid skinned VRM with resum
 
 test('VRoid labels hide identifiers and whole-body preference survives export/import', () => {
   for (const name of ['Body_00_SKIN', 'HairBack_00_HAIR (Outline)', 'EyeIris_00_EYE', 'unknown_17']) assert.doesNotMatch(materialLabel(name, 1), /[a-z]/i);
-  assert.equal(materialLabel('深青色衣服', 0), '深青色衣服');
+  assert.equal(materialLabel('深青色衣服', 0), '衣服');
+  assert.deepEqual(materialLabels(['Tops_A', 'Tops_B', 'Cloth_Dress', 'Cloth_Gloves', 'Cloth_Socks', 'Cloth_Hat']), ['上衣 1', '上衣 2', '连衣裙', '手套', '袜子', '帽子']);
   const settings = parseSettings('{"bodyTracking":true}');
   assert.equal(parseSettingsProfile(JSON.stringify(createSettingsProfile(settings))).bodyTracking, true);
   assert.equal(parseSettings('{"bodyTracking":"true"}').bodyTracking, false);

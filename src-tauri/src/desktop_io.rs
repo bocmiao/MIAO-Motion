@@ -37,7 +37,7 @@ fn export_name(request: &tauri::ipc::Request<'_>) -> Result<String, String> {
 }
 
 #[tauri::command]
-pub async fn save_export(request: tauri::ipc::Request<'_>) -> Result<bool, String> {
+pub async fn save_export(window: tauri::WebviewWindow, request: tauri::ipc::Request<'_>) -> Result<bool, String> {
     let name = export_name(&request)?;
     let tauri::ipc::InvokeBody::Raw(bytes) = request.body() else { return Err("需要二进制导出数据".into()); };
     if bytes.is_empty() || bytes.len() > 200 * 1024 * 1024 { return Err("导出大小无效".into()); }
@@ -45,12 +45,12 @@ pub async fn save_export(request: tauri::ipc::Request<'_>) -> Result<bool, Strin
     #[cfg(windows)]
     {
         let extension = if name.ends_with(".vrm") { "vrm" } else { "json" };
-        let Some(file) = rfd::AsyncFileDialog::new().set_title("保存导出文件").set_file_name(&name).add_filter("导出文件", &[extension]).save_file().await else { return Ok(false); };
+        let Some(file) = rfd::AsyncFileDialog::new().set_parent(&window).set_title("保存导出文件").set_file_name(&name).add_filter("导出文件", &[extension]).save_file().await else { return Ok(false); };
         file.write(&bytes).await.map_err(|_| "保存失败，请检查目标文件夹的权限和剩余空间")?;
         Ok(true)
     }
     #[cfg(not(windows))]
-    { let _ = (name, bytes); Err("此桌面功能目前仅支持 Windows".into()) }
+    { let _ = (window, name, bytes); Err("此桌面功能目前仅支持 Windows".into()) }
 }
 
 #[cfg(test)]

@@ -76,7 +76,7 @@ export function exportCat(buffer: ArrayBuffer, style: CatStyle, colors: Record<s
   if (document.extras?.miaoCharacter) {
     document.extras.miaoCharacter.name = document.extensions.VRMC_vrm.meta.name;
     for (const category of Object.keys(catChoices) as CatCategory[]) document.extras.miaoCharacter.parts[category] = style[category];
-    for (const [material, field] of Object.entries({ '奶油色毛发': 'fur', '深青色衣服': 'outfit', '徽章与袖口': 'accent', '瞳孔': 'eyes' })) {
+    for (const [material, field] of Object.entries({ '毛发': 'fur', '衣服': 'outfit', '配饰': 'accent', '奶油色毛发': 'fur', '深青色衣服': 'outfit', '徽章与袖口': 'accent', '瞳孔': 'eyes' })) {
       const color = colors[material];
       if (color?.length === 3 && color.every(x => Number.isFinite(x) && x >= 0 && x <= 1)) document.extras.miaoCharacter.colors[field] = '#' + color.map(x => Math.round((x <= 0.0031308 ? x * 12.92 : 1.055 * x ** (1 / 2.4) - 0.055) * 255).toString(16).padStart(2, '0')).join('');
     }

@@ -4,6 +4,17 @@ import { CAPTURE_SHARE, MAX_FPS, createFramePacer } from '../src/frame-pacing.mj
 
 const steady = cost => { const pacer = createFramePacer(); for (let i = 0; i < 40; i++) pacer.record(cost); return pacer; };
 
+test('delivery rate measures acknowledgements and pacing includes slow IPC', () => {
+  const pacer = createFramePacer();
+  pacer.record(3, 700, 1000);
+  assert.equal(pacer.deliveredFps, null);
+  pacer.record(3, 700, 1800);
+  assert.equal(pacer.deliveredFps, 1.25);
+  assert.ok(pacer.interval >= 840);
+  pacer.reset();
+  assert.equal(pacer.deliveredFps, null);
+});
+
 test('a fast PC keeps the full virtual camera frame rate', () => {
   const pacer = steady(3);
   assert.equal(pacer.fps, MAX_FPS);
@@ -19,10 +30,10 @@ test('a slow PC lowers the output rate so capture stays under its share of the m
   assert.equal(steady(50).fps, 4);
 });
 
-test('an extremely slow PC still outputs one frame per second instead of stopping', () => {
+test('an extremely slow PC leaves enough time for UI work instead of claiming one FPS', () => {
   const pacer = steady(900);
-  assert.equal(pacer.interval, 1000);
-  assert.equal(pacer.fps, 1);
+  assert.equal(pacer.interval, 4500);
+  assert.ok(pacer.fps < 1);
 });
 
 test('one slow frame does not immediately drop the rate to the floor, and recovery is gradual', () => {

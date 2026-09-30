@@ -1,32 +1,37 @@
-/**
- * Virtual camera output pacing. Each output frame reads the WebGL canvas back, repacks it to BGR and
- * sends it over IPC, all on the page's main thread. On a PC without a capable GPU that work alone can
- * saturate the thread and freeze the interface, so the gap between frames grows with the measured
- * capture cost: capture may use at most CAPTURE_SHARE of the main thread, trading output frame rate
- * for a responsive app.
- */
+/** Output pacing includes capture work and asynchronous GPU/IPC latency. */
 export const MAX_FPS = 15;
 export const CAPTURE_SHARE = 0.2;
-const MIN_INTERVAL = 1000 / MAX_FPS, MAX_INTERVAL = 1000, SMOOTHING = 0.2;
+const MIN_INTERVAL = 1000 / MAX_FPS, SMOOTHING = 0.2;
 
 export function createFramePacer() {
-  let averageCost = 0;
+  let averageCost = 0, averageElapsed = 0, lastCompleted = null, averageInterval = 0;
   return {
     /** Milliseconds to wait after a frame starts before the next one may. */
     get interval() {
-      return Math.min(MAX_INTERVAL, Math.max(MIN_INTERVAL, averageCost / CAPTURE_SHARE));
+      return Math.max(MIN_INTERVAL, averageCost / CAPTURE_SHARE, averageElapsed * 1.2);
     },
     /** Output frames per second at the current interval. */
     get fps() {
-      return Math.max(1, Math.round(1000 / this.interval));
+      return Math.round(100000 / this.interval) / 100;
     },
-    /** @param {number} cost synchronous milliseconds the last capture took */
-    record(cost) {
+    get deliveredFps() { return averageInterval > 0 ? 1000 / averageInterval : null; },
+    /** @param {number} cost synchronous capture cost
+     * @param {number} elapsed complete GPU + conversion + IPC latency
+     * @param {number | undefined} completedAt actual successful delivery time */
+    record(cost, elapsed = cost, completedAt) {
       if (!Number.isFinite(cost) || cost < 0) return;
       averageCost = averageCost === 0 ? cost : averageCost * (1 - SMOOTHING) + cost * SMOOTHING;
+      if (Number.isFinite(elapsed) && elapsed >= 0) averageElapsed = averageElapsed === 0 ? elapsed : averageElapsed * (1 - SMOOTHING) + elapsed * SMOOTHING;
+      if (Number.isFinite(completedAt)) {
+        if (lastCompleted !== null && completedAt > lastCompleted) {
+          const interval = completedAt - lastCompleted;
+          averageInterval = averageInterval === 0 ? interval : averageInterval * (1 - SMOOTHING) + interval * SMOOTHING;
+        }
+        lastCompleted = completedAt;
+      }
     },
     reset() {
-      averageCost = 0;
+      averageCost = averageElapsed = averageInterval = 0; lastCompleted = null;
     },
   };
 }

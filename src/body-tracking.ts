@@ -21,7 +21,7 @@ export function setupBodyTracking(avatar: () => VRM | null, mirror: () => boolea
     status.dataset.state = 'off'; status.dataset.frames = '0'; status.textContent = '身体和手部追踪未开启';
   };
   const fail = (message = '身体追踪无法运行，已停止；可重新勾选重试') => {
-    stop(); toggle.checked = false; status.dataset.state = 'error'; status.textContent = message;
+    stop(); toggle.checked = false; toggle.dispatchEvent(new Event('change', { bubbles: true })); status.dataset.state = 'error'; status.textContent = message;
   };
   // A frame failed after the engines were ready: replace the worker instead of waiting forever on `busy`.
   const recover = () => {

@@ -15,7 +15,7 @@ test('original mascot loads with face controls and can be recolored', async ({ p
   await page.locator('.studio-settings > summary').click();
   await page.locator('#expression-preset').selectOption('happy');
   await expect(page.locator('#expression-preset')).toHaveValue('happy');
-  await page.locator('#avatar-material').selectOption({ label: '深青色衣服' });
+  await page.locator('#avatar-material').selectOption({ label: '衣服' });
   await page.locator('#avatar-color').fill('#2856b0');
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.screenshot({ path: test.info().outputPath('mascot-studio.png'), fullPage: true });
@@ -89,7 +89,7 @@ test('home choices and platform guide lead to an exportable customized mascot', 
   await expect(page.locator('#cat-editor')).toBeEnabled();
   await page.locator('#cat-name').fill('奶茶猫');
   for(const [part,value] of [['ears','round'],['tail','short'],['hair','smooth'],['clothes','hoodie']]) await page.locator('#cat-'+part).selectOption(value);
-  await page.locator('#avatar-material').selectOption({label:'深青色衣服'});
+  await page.locator('#avatar-material').selectOption({label:'衣服'});
   await page.locator('#avatar-color').fill('#123456');
   const downloadPromise=page.waitForEvent('download');
   await page.locator('#cat-export').click();
@@ -100,7 +100,7 @@ test('home choices and platform guide lead to an exportable customized mascot', 
   await expect(page.locator('#model-status')).toContainText('兼容性 4/4');
   await expect(page.locator('#cat-name')).toHaveValue('奶茶猫');
   await expect(page.locator('#cat-ears')).toHaveValue('round');
-  await page.locator('#avatar-material').selectOption({label:'深青色衣服'});
+  await page.locator('#avatar-material').selectOption({label:'衣服'});
   await expect(page.locator('#avatar-color')).toHaveValue('#123456');
   await page.locator('#live-platform').selectOption('xiaohongshu');
   await expect(page.locator('#platform-steps')).toContainText('MIAO Motion Camera');
@@ -129,7 +129,7 @@ test('material colors persist per model and reset; microphone closes every track
   await page.locator('#avatar-color').fill('#123456');
   await page.reload();
   await expect(page.locator('#model-status')).toContainText('模型可用');
-  await page.locator('#onboarding-later').click();
+  await expect(page.locator('#onboarding-dialog')).not.toBeVisible();
   await page.locator('.studio-settings > summary').click();
   await expect(page.locator('#avatar-color')).toHaveValue('#123456');
   await page.locator('#avatar-color-reset').click();

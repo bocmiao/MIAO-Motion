@@ -252,7 +252,7 @@ for (const id of ['body-tracking', 'onboarding-body']) required<HTMLInputElement
 });
 if (navigator.hardwareConcurrency >= 8) required('#body-recommendation').textContent = '这台电脑可以先试试全身动捕，让手臂和手指一起动；实际是否流畅以试动为准。';
 const catEditor = setupCatEditor(() => currentVrm, () => currentModelId);
-const nativeCamera = setupNativeCamera(canvas, () => Boolean(currentVrm) && stage.dataset.renderReady === 'true');
+const nativeCamera = setupNativeCamera(renderer, scene, camera, () => Boolean(currentVrm) && stage.dataset.renderReady === 'true');
 let lastPhoneFrame = 0;
 const phone = setupPhone(packet => {
   lastPhoneFrame = performance.now();
@@ -1285,8 +1285,9 @@ broadcastButton.addEventListener('click', () => {
 });
 obsButton.addEventListener('click', () => { void copyObsUrl(); });
 openGuideButton.addEventListener('click', openOnboarding);
-onboardingCloseButton.addEventListener('click', () => onboardingDialog.close());
-onboardingLaterButton.addEventListener('click', () => onboardingDialog.close());
+const dismissOnboarding = () => { settings = { ...settings, onboardingComplete: true }; saveSettings(); onboardingDialog.close(); };
+onboardingCloseButton.addEventListener('click', dismissOnboarding);
+onboardingLaterButton.addEventListener('click', dismissOnboarding);
 onboardingBackButton.addEventListener('click', () => {
   clearTimeout(onboardingTimer);
   onboardingStep -= 1;
@@ -1384,6 +1385,8 @@ const resize = () => {
 };
 new ResizeObserver(resize).observe(stage);
 setupCharacterCreator({
+  restore: id => id ? loadStoredModel(id) : removeCurrentModel(false),
+  resumeOnboarding: saved => { onboardingStep = saved ? 2 : 1; updateOnboarding(); onboardingDialog.show(); },
   preview: file => loadVrm(file, false),
   save: async (file, id) => {
     const saved = await putStoredModel(file, id);

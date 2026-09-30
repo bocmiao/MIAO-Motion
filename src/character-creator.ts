@@ -13,6 +13,8 @@ export function setupCharacterCreator(options: {
   currentId: () => string;
   camera: () => void;
   frame: () => void;
+  restore: (id: string) => Promise<unknown>;
+  resumeOnboarding: (saved: boolean) => void;
 }) {
   const element = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
   const dialog = element<HTMLDialogElement>('character-creator');
@@ -23,6 +25,7 @@ export function setupCharacterCreator(options: {
   const steps = [...document.querySelectorAll<HTMLElement>('[data-creator-step]')];
   const names = ['起个名字', '选底座与比例', '捏脸', '头发、耳朵和尾巴', '穿上衣服', '搭配颜色', '开摄像头试动', '保存你的角色'];
   let recipe = structuredClone(defaultCharacter), step = 0, libraryId = '';
+  let fromOnboarding = false, previousId = '';
   let revision = 0, rendered = -1, running: Promise<void> | null = null, timer = 0, busy = false;
   const file = () => {
     const generate = generators[recipe.baseId];
@@ -114,24 +117,39 @@ export function setupCharacterCreator(options: {
   cameraObserver.observe(cameraStatus, { childList: true, characterData: true, subtree: true });
   element('creator-recenter').addEventListener('click', options.frame);
   new ResizeObserver(() => { if (dialog.open) options.frame(); }).observe(element('creator-preview'));
-  const save = async (exportOnly: boolean) => {
+  const save = async (exportOnly: boolean, finish = false) => {
     if (busy) return;
     busy = true; form.disabled = true;
-    for (const id of ['creator-save', 'creator-export', 'creator-close', 'creator-new', 'creator-random', 'creator-next', 'creator-back']) element<HTMLButtonElement>(id).disabled = true;
+    for (const id of ['creator-save', 'creator-export', 'creator-close', 'creator-discard', 'creator-new', 'creator-random', 'creator-next', 'creator-back']) element<HTMLButtonElement>(id).disabled = true;
     try {
       await render();
       if (exportOnly) status.textContent = await saveFile(safeFileName(recipe.name), file()) ? 'VRM 已导出，可重新导入并继续编辑' : '已取消导出，草稿仍然保留';
       else { libraryId = await options.save(file(), libraryId || undefined); if (saveDraft()) status.textContent = '已保存到角色库；下次可继续编辑，也可以导出 VRM'; }
+      if (finish) dialog.close('saved');
     } catch (error) { status.textContent = `保存未完成：${error instanceof Error ? error.message : '请检查本机空间和文件夹权限后重试'}`; }
-    finally { busy = false; form.disabled = false; for (const id of ['creator-save', 'creator-export', 'creator-close', 'creator-new', 'creator-random', 'creator-next', 'creator-back']) element<HTMLButtonElement>(id).disabled = false; sync(); }
+    finally { busy = false; form.disabled = false; for (const id of ['creator-save', 'creator-export', 'creator-close', 'creator-discard', 'creator-new', 'creator-random', 'creator-next', 'creator-back']) element<HTMLButtonElement>(id).disabled = false; sync(); }
   };
   element('creator-save').addEventListener('click', () => void save(false));
   element('creator-export').addEventListener('click', () => void save(true));
-  element('creator-close').addEventListener('click', () => { if (saveDraft()) dialog.close(); });
-  dialog.addEventListener('cancel', event => { if (busy || !saveDraft()) event.preventDefault(); });
-  dialog.addEventListener('close', () => { clearTimeout(timer); stageHome.append(stageCard); document.body.classList.remove('creating-character'); options.frame(); });
+  element('creator-close').addEventListener('click', () => void save(false, true));
+  element('creator-discard').addEventListener('click', async () => {
+    if (busy) return;
+    busy = true; clearTimeout(timer); form.disabled = true;
+    try { await running; await options.restore(libraryId || previousId); dialog.close('discarded'); }
+    catch { status.textContent = '返回失败，草稿仍在，请重试'; }
+    finally { busy = false; form.disabled = false; }
+  });
+  dialog.addEventListener('cancel', event => { event.preventDefault(); void save(false, true); });
+  dialog.addEventListener('close', () => {
+    clearTimeout(timer); stageHome.append(stageCard); document.body.classList.remove('creating-character'); options.frame();
+    if (fromOnboarding) { fromOnboarding = false; options.resumeOnboarding(dialog.returnValue === 'saved'); }
+  });
   const open = (fresh: boolean, fromCurrent = false) => {
     try {
+      if (!dialog.open) {
+        fromOnboarding = (document.getElementById('onboarding-dialog') as HTMLDialogElement).open;
+        previousId = options.currentId();
+      }
       if (fresh) { recipe = structuredClone(defaultCharacter); step = 0; libraryId = ''; }
       else if (fromCurrent) { recipe = normalizeCharacter(options.currentRecipe()); step = 0; libraryId = options.currentId(); }
       else {

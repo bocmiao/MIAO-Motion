@@ -10,9 +10,9 @@ const parents = [];
 const nodes = [], meshes = [], views = [], accessors = [], chunks = [];
 let length = 0;
 const materials = [
-  ['奶油色毛发', [0.94, 0.84, 0.65, 1]], ['深青色衣服', [0.035, 0.32, 0.32, 1]],
+  ['毛发', [0.94, 0.84, 0.65, 1]], ['衣服', [0.035, 0.32, 0.32, 1]],
   ['面部深色', [0.035, 0.035, 0.055, 1]], ['耳朵内侧', [1, 0.50, 0.48, 1]],
-  ['徽章与袖口', [1, 0.63, 0.12, 1]], ['眼白', [1, 0.98, 0.9, 1]],
+  ['配饰', [1, 0.63, 0.12, 1]], ['眼白', [1, 0.98, 0.9, 1]],
 ].map(([name, color], i) => ({ name, doubleSided: true, pbrMetallicRoughness: { baseColorFactor: i === 0 ? [...new Color(config.colors.fur).toArray(),1] : i === 1 ? [...new Color(config.colors.outfit).toArray(),1] : i === 4 ? [...new Color(config.colors.accent).toArray(),1] : color, metallicFactor: 0, roughnessFactor: 0.85 } }));
 function attribute(array, type, bounds = false, componentType = 5126) {
   const data = new Uint8Array(array.buffer, array.byteOffset, array.byteLength);
@@ -57,7 +57,6 @@ const spine = bone('spine', [0, 0.13, 0], hips);
 const chest = bone('chest', [0, 0.16, 0], spine);
 const neck = bone('neck', [0, 0.12, 0], chest);
 const head = bone('head', [0, 0.17, 0], neck);
-nodes[head].scale = [config.proportions.head,config.proportions.head,config.proportions.head];
 shape(hips, '裤子', [0, 0, 0], [0.18*config.proportions.width, 0.14, 0.13], 1);
 shape(spine, '上衣', [0, 0.035, 0], [0.20*config.proportions.width, 0.23, 0.14], 1);
 const part = (category, choice, parent, visible = true) => {
@@ -133,6 +132,23 @@ const preset = {
   sad:{ morphTargetBinds:[bind(mouth,2),...browNodes.map(n=>bind(n,1))] }, angry:{ morphTargetBinds:browNodes.map(n=>bind(n,0)) }, relaxed:{ morphTargetBinds:eyeNodes.map(n=>({...bind(n,0),weight:0.5})) }, surprised:{ morphTargetBinds:[bind(mouth,0)] },
 };
 const range = { inputMaxValue:90,outputScale:12 };
+// Bake head proportions into geometry/anchors, leaving every humanoid bone at
+// unit scale for VRM consumers that normalize the skeleton on import.
+const resizeHead = id => {
+  const n = nodes[id], factor = config.proportions.head;
+  n.translation = n.translation.map(value => value * factor);
+  if (n.mesh !== undefined) for (const primitive of meshes[n.mesh].primitives) {
+    for (const index of [primitive.attributes.POSITION, ...(primitive.targets ?? []).map(t => t.POSITION)]) {
+      const accessor = accessors[index], data = chunks[accessor.bufferView];
+      const values = new Float32Array(data.buffer, data.byteOffset, data.byteLength / 4);
+      for (let i = 0; i < values.length; i++) values[i] *= factor;
+      accessor.min = accessor.min.map(value => value * factor);
+      accessor.max = accessor.max.map(value => value * factor);
+    }
+  }
+  for (const child of n.children ?? []) resizeHead(child);
+};
+for (const child of nodes[head].children ?? []) resizeHead(child);
 const gltf = { asset:{version:'2.0',generator:'MIAO Motion original procedural mascot'},scene:0,scenes:[{nodes:[hips]}], nodes, meshes, materials, bufferViews:views, accessors, buffers:[{byteLength:length}],extensionsUsed:['VRMC_vrm'],extensions:{VRMC_vrm:{specVersion:'1.0',meta:{name:'喵小动 · 原创猫咪',version:'1',authors:['MIAO Motion contributors'],copyrightInformation:'Original procedural geometry; source in scripts/generate-miao-avatar.mjs',licenseUrl:'https://vrm.dev/licenses/1.0/',avatarPermission:'everyone',commercialUsage:'corporation',creditNotation:'unnecessary',allowRedistribution:true,modification:'allowModificationRedistribution',allowExcessivelyViolentUsage:false,allowExcessivelySexualUsage:false,allowPoliticalOrReligiousUsage:false,allowAntisocialOrHateUsage:false},humanoid:{humanBones:bones},expressions:{preset},lookAt:{type:'bone',offsetFromHeadBone:[0,0.065,0.2],rangeMapHorizontalInner:range,rangeMapHorizontalOuter:range,rangeMapVerticalDown:range,rangeMapVerticalUp:range}}}};
 for (const [category, choice] of Object.entries(config.parts)) for (const n of nodes) {
   if (n.name?.startsWith('miao_part_'+category+'_')) n.scale = n.name === 'miao_part_'+category+'_'+choice ? [1,1,1] : [0,0,0];

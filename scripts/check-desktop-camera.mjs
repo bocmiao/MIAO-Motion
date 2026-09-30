@@ -8,11 +8,18 @@ import { PNG } from 'pngjs';
 // CI only: connect to the installed app's WebView2, not a browser preview.
 const browser = await chromium.connectOverCDP('http://127.0.0.1:9222');
 const page = browser.contexts()[0].pages()[0];
-page.setDefaultTimeout(60_000);
+page.setDefaultTimeout(15_000);
+const bounded = async (promise, label, timeout = 5000) => {
+  let timer;
+  try { return await Promise.race([promise, new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(label + ' exceeded ' + timeout + ' ms')), timeout); })]); }
+  finally { clearTimeout(timer); }
+};
+const query = (fn, arg) => bounded(page.evaluate(fn, arg), 'WebView2 query');
+let lastMetrics = null;
 mkdirSync('test-results', { recursive: true });
 const errors = [];
 page.on('pageerror', error => errors.push(String(error)));
-page.on('console', message => { if (['warning','error'].includes(message.type())) errors.push(message.text()); });
+page.on('console', message => { if (message.text().startsWith('MIAO_OUTPUT_METRICS ')) { lastMetrics = message.text(); console.log(lastMetrics); } if (['warning','error'].includes(message.type())) errors.push(message.text()); });
 const capture = file => new Promise((resolve, reject) => {
   const process = spawn('ffmpeg', ['-hide_banner', '-y', '-f', 'dshow', '-video_size', '640x360',
     '-i', 'video=MIAO Motion Camera', '-frames:v', '1', '-update', '1', file], { stdio: 'inherit', windowsHide: true });
@@ -29,16 +36,21 @@ try {
   await page.locator('#render-quality').evaluate(input => { input.value = 'performance'; input.dispatchEvent(new Event('change', { bubbles: true })); });
   await checkDesktopIO(page);
   await page.locator('.studio-settings > summary').click();
-  await page.locator('#avatar-material').selectOption({ label: '深青色衣服' });
+  await page.locator('#avatar-material').selectOption({ label: '衣服' });
   await page.getByText('原生虚拟摄像头（Windows）', { exact: true }).click();
   await page.locator('#native-camera-install').click();
   await expect(page.locator('#native-camera-status')).toContainText('虚拟摄像头已安装');
   await page.locator('#background-toggle').click();
   await page.locator('#native-camera-toggle').click();
   await expect(page.locator('#native-camera-status')).toContainText('正在输出', { timeout: 15_000 });
-  const sentFrames = () => page.locator('#native-camera-status').evaluate(status => Number(status.dataset.frames ?? 0));
-  await page.evaluate(() => {
+  const sentFrames = () => query(() => Number(document.getElementById('native-camera-status').dataset.frames ?? 0));
+  await query(() => {
     window.__desktopAnimationFrames = 0;
+    window.__outputMetrics = { maxDelay: 0, longTasks: 0, longestTask: 0 };
+    let last = performance.now();
+    setInterval(() => { const now = performance.now(); window.__outputMetrics.maxDelay = Math.max(window.__outputMetrics.maxDelay, now - last - 100); last = now; }, 100);
+    if (PerformanceObserver.supportedEntryTypes.includes('longtask')) new PerformanceObserver(list => { for (const entry of list.getEntries()) { window.__outputMetrics.longTasks++; window.__outputMetrics.longestTask = Math.max(window.__outputMetrics.longestTask, entry.duration); } }).observe({ type: 'longtask', buffered: true });
+    setInterval(() => console.debug('MIAO_OUTPUT_METRICS ' + JSON.stringify(window.__outputMetrics)), 1000);
     const count = () => { window.__desktopAnimationFrames++; requestAnimationFrame(count); };
     requestAnimationFrame(count);
   });
@@ -47,7 +59,7 @@ try {
     await page.bringToFront().catch(error => console.warn('WebView2 foreground request:', String(error)));
     const framesBefore = await sentFrames();
     // Record whether the page is still producing frames; a paused page cannot feed the camera either.
-    const pageState = await page.evaluate(() => new Promise(resolve => {
+    const pageState = await query(() => new Promise(resolve => {
       const timer = setTimeout(() => resolve({ visibility: document.visibilityState, animationFrame: false }), 2000);
       requestAnimationFrame(() => { clearTimeout(timer); resolve({ visibility: document.visibilityState, animationFrame: true }); });
     }));
@@ -55,7 +67,8 @@ try {
     // Set the value directly: Playwright's fill polls actionability on animation frames, which WebView2
     // can pause for a covered CI window. The red-to-blue pixel assertion below still proves the change
     // reached the DirectShow receiver.
-    await page.locator('#avatar-color').evaluate((input, value) => {
+    await query(value => {
+      const input = document.getElementById('avatar-color');
       if (input.disabled) throw new Error('颜色控件处于禁用状态，换色没有选中材质');
       input.value = value;
       input.dispatchEvent(new Event('input', { bubbles: true }));
@@ -64,7 +77,7 @@ try {
     // Wait until the app has sent two more frames after the change: a busy CI runner lowers the output
     // rate, so a fixed delay could capture a frame rendered before the new color.
     await expect.poll(async () => {
-      const state = await page.evaluate(() => ({ sent: Number(document.getElementById('native-camera-status').dataset.frames ?? 0), rendered: window.__desktopAnimationFrames, visibility: document.visibilityState }));
+      const state = await query(() => ({ sent: Number(document.getElementById('native-camera-status').dataset.frames ?? 0), rendered: window.__desktopAnimationFrames, visibility: document.visibilityState }));
       console.log('Installed output progress', state);
       return state.sent;
     }, { timeout: 30_000 }).toBeGreaterThanOrEqual(framesBefore + 2);
@@ -84,16 +97,16 @@ try {
   await page.bringToFront().catch(error => console.warn('WebView2 foreground request:', String(error)));
   // Invoke the real UI handler directly, without animation-frame selector
   // polling in a WebView2 window that the receiver may have occluded.
-  await page.evaluate(() => document.getElementById('native-camera-toggle').click());
+  await query(() => document.getElementById('native-camera-toggle').click());
   await expect(page.locator('#native-camera-toggle')).toContainText('开始', { timeout: 10_000 });
-  console.log('Native output stop handler completed.');
+  console.log('Native output stop handler completed.', await query(() => window.__outputMetrics));
 } catch (error) {
   console.error('Installed app verification failed:', error);
-  const state = await page.evaluate(() => ({ nativeStatus: document.getElementById('native-camera-status')?.textContent,
+  const state = await query(() => ({ nativeStatus: document.getElementById('native-camera-status')?.textContent,
     button: document.getElementById('native-camera-toggle')?.textContent, stage: document.getElementById('stage')?.dataset.renderReady,
     catStatus: document.getElementById('cat-editor-status')?.textContent, toast: document.getElementById('toast')?.textContent })).catch(() => null);
-  console.error('Installed app diagnostics', state, errors);
-  writeFileSync('test-results/desktop-camera-diagnostics.json', JSON.stringify({ error: String(error), state, errors }, null, 2));
+  console.error('Installed app diagnostics', state, errors, lastMetrics);
+  writeFileSync('test-results/desktop-camera-diagnostics.json', JSON.stringify({ error: String(error), state, errors, lastMetrics }, null, 2));
   await page.screenshot({ path: 'test-results/desktop-camera-failure.png', timeout: 5000 }).catch(() => {});
   throw error;
 } finally { await browser.close(); }

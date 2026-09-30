@@ -176,6 +176,8 @@ test('body tracking: repeated silent failures stop body tracking with a visible 
   await expect(page.locator('#body-status')).toContainText('连续多次没有响应', { timeout: 60_000 });
   await expect(page.locator('#body-status')).toHaveAttribute('data-state', 'error');
   await expect(page.locator('#body-tracking')).not.toBeChecked();
+  await expect(page.locator('#onboarding-body')).not.toBeChecked();
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('miao-motion-settings-v1')).bodyTracking)).toBe(false);
   const workers = await page.evaluate(() => window.__bodyWorkers.map(w => ({ terminated: w.terminated, frames: w.frames })));
   expect(workers).toHaveLength(3);
   expect(workers.every(w => w.terminated && w.frames === 1)).toBe(true);

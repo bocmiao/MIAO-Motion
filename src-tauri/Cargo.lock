@@ -1764,7 +1764,7 @@ dependencies = [
 
 [[package]]
 name = "miao-motion"
-version = "0.3.1"
+version = "0.3.2"
 dependencies = [
  "libloading 0.8.9",
  "percent-encoding",

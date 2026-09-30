@@ -3,6 +3,7 @@ export const CAPTURE_SHARE: number;
 export function createFramePacer(): {
   readonly interval: number;
   readonly fps: number;
-  record(cost: number): void;
+  readonly deliveredFps: number | null;
+  record(cost: number, elapsed?: number, completedAt?: number): void;
   reset(): void;
 };
