@@ -29,10 +29,25 @@ pub fn open_external(url: String) -> Result<(), String> {
     Err("此桌面功能目前仅支持 Windows".into())
 }
 
+/// Windows 保留设备名（不区分大小写），不能作为文件名主体使用。
+fn is_reserved_file_stem(stem: &str) -> bool {
+    let upper = stem.to_ascii_uppercase();
+    if ["CON", "PRN", "AUX", "NUL"].contains(&upper.as_str()) {
+        return true;
+    }
+    if upper.len() == 4 && (upper.starts_with("COM") || upper.starts_with("LPT")) {
+        return upper[3..].chars().all(|c| ('1'..='9').contains(&c));
+    }
+    false
+}
+
 fn export_name(request: &tauri::ipc::Request<'_>) -> Result<String, String> {
     let encoded = request.headers().get("x-file-name").and_then(|v| v.to_str().ok()).ok_or("缺少文件名")?;
     let name = percent_encoding::percent_decode_str(encoded).decode_utf8().map_err(|_| "无效文件名")?.into_owned();
-    if name.len() > 200 || name.chars().any(|c| c.is_control() || "<>:\"/\\|?*".contains(c)) || name.ends_with([' ', '.']) || !(name.ends_with(".vrm") || name.ends_with(".json")) { return Err("不支持的导出文件名".into()); }
+    // 按字符数而非字节数限长：中文文件名按字节计数会吃亏。
+    if name.chars().count() > 80 || name.chars().any(|c| c.is_control() || "<>:\"/\\|?*".contains(c)) || name.ends_with([' ', '.']) || !(name.ends_with(".vrm") || name.ends_with(".json")) { return Err("不支持的导出文件名".into()); }
+    let stem = name.rsplit_once('.').map(|(stem, _)| stem).unwrap_or(&name);
+    if is_reserved_file_stem(stem) { return Err("文件名使用了系统保留名称，请换一个名字".into()); }
     Ok(name)
 }
 
@@ -60,5 +75,14 @@ mod tests {
     fn external_urls_are_exactly_scoped() {
         for url in ["https://vroid.com/en/studio", "https://store.steampowered.com/app/1486350/VRoid_Studio/?l=schinese", "https://github.com/bocmiao/MIAO-Motion/releases/latest", "https://vrm.dev/licenses/1.0/"] { assert!(allowed_external(&Url::parse(url).unwrap()), "{url}"); }
         for url in ["file:///C:/Windows/system32/cmd.exe", "https://vroid.com.evil.test/en/studio", "https://evil.test/", "https://user@vroid.com/en/studio", "https://vroid.com:444/en/studio", "http://vroid.com/en/studio", "https://github.com/other/repo/releases", "https://github.com/bocmiao/MIAO-Motion/releases-evil", "https://store.steampowered.com/app/14863500/"] { assert!(!allowed_external(&Url::parse(url).unwrap()), "{url}"); }
+    }
+    #[test]
+    fn reserved_file_stems_are_rejected_case_insensitively() {
+        for stem in ["CON", "con", "Con", "PRN", "AUX", "NUL", "COM1", "com9", "LPT1", "lpt9"] {
+            assert!(is_reserved_file_stem(stem), "{stem}");
+        }
+        for stem in ["concat", "console", "com10", "COM0", "lpt0", "auxiliary", "null0", "我的角色", "miao-cat"] {
+            assert!(!is_reserved_file_stem(stem), "{stem}");
+        }
     }
 }

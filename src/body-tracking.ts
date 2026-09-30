@@ -53,14 +53,26 @@ export function setupBodyTracking(avatar: () => VRM | null, mirror: () => boolea
   toggle.addEventListener('change', () => { if (!toggle.checked) stop(); });
   window.addEventListener('pagehide', stop);
   status.dataset.state = 'off';
-  return { stop, resetPose: solver.reset, active: () => Boolean(worker), tick(video: HTMLVideoElement, now: number, active: boolean) {
-    if (!toggle.checked || !active) { if (worker) stop(); return; }
+  return { stop, resetPose: solver.reset, active: () => Boolean(worker), tick(video: HTMLVideoElement, now: number, active: boolean, phoneActive = false) {
+    if (!toggle.checked || !active) {
+      if (worker) stop();
+      // 勾选了身体追踪但没有摄像头画面时不要静默：明确告诉用户缺的是视频源。
+      if (toggle.checked && !active) {
+        status.dataset.state = 'off';
+        status.textContent = phoneActive
+          ? '身体追踪需要开启摄像头：当前仅手机面捕，身体追踪未启动'
+          : '身体和手部追踪未开启';
+      }
+      return;
+    }
     if (!worker) { count = 0; failures = 0; status.dataset.restarts = '0'; start(); return; }
     if (!ready || busy || now < next || video.readyState < 2 || document.hidden) return;
     busy = true; const request = generation;
     // Watchdog covers frame capture and inference: a silent worker crash or hang must not leave `busy` set.
     frameTimer = setTimeout(() => { if (request === generation && busy) recover(); }, BODY_FRAME_TIMEOUT_MS);
-    const width = Math.min(512, video.videoWidth), height = Math.max(1, Math.round(width * video.videoHeight / video.videoWidth));
+    // 送检分辨率 384px：pose_lite 内部本就是小分辨率推理，512px 只增加
+    // createImageBitmap（主线程）与传输开销，对精度几乎无贡献。
+    const width = Math.min(384, video.videoWidth), height = Math.max(1, Math.round(width * video.videoHeight / video.videoWidth));
     void createImageBitmap(video, { resizeWidth: width, resizeHeight: height }).then(frame => {
       if (!worker || request !== generation) { frame.close(); return; }
       worker.postMessage({ type: 'frame', frame, now }, [frame]);

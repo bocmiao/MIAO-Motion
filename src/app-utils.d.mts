@@ -7,7 +7,7 @@ export type ModelMetrics = { fileBytes: number; triangles: number; materials: nu
 export const DEFAULT_SETTINGS: Readonly<AppSettings>;
 export function parseSettings(raw: string | null): AppSettings;
 export function validateModelFile(file: Pick<File, 'name' | 'size'>, maxBytes: number): string;
-export { cameraConstraints, cameraErrorMessage, createWithGpuFallback, stopMediaStream } from './capture.mjs';
+export { cameraConstraints, cameraErrorMessage, createWithGpuFallback, createInferenceHealthMonitor, stopMediaStream } from './capture.mjs';
 export function trackingQuality(fps: number, faceVisible: boolean): { label: string; level: 'idle' | 'good' | 'fair' | 'weak'; value: number };
 export function scaleMotion<T extends Record<string, number>>(motion: T, sensitivity: number): T;
 export function onboardingState(step: number, hasModel: boolean, hasCamera: boolean): { current: number; canContinue: boolean; nextLabel: string; progress: string };

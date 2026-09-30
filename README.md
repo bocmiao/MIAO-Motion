@@ -135,6 +135,7 @@ http://127.0.0.1:4173/?broadcast=1&background=transparent
 - [Claude 审计整改对照](docs/CLAUDE_AUDIT_REMEDIATION.md)：P0–P3 每项结果、证据和待人工验收项。
 - [版本记录](CHANGELOG.md)：各版本的发布日期、新增与修复。
 - [技术架构](docs/architecture.md)：当前代码链路与模块边界。
+- [部件资产包离线生产管线](docs/TRAIT_PACK.md)：Blender + vrm-addon-for-blender 生产精美部件，manifest 格式与当前边界。
 - [贡献指南](CONTRIBUTING.md)：开发流程、范围与许可证要求。
 
 ## 开源协议

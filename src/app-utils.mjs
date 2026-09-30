@@ -58,7 +58,7 @@ export function validateModelFile(file, maxBytes) {
   return '';
 }
 
-export { cameraConstraints, cameraErrorMessage, createWithGpuFallback, stopMediaStream } from './capture.mjs';
+export { cameraConstraints, cameraErrorMessage, createWithGpuFallback, createInferenceHealthMonitor, stopMediaStream } from './capture.mjs';
 
 export function trackingQuality(fps, faceVisible) {
   if (!faceVisible) return { label: '等待人脸', level: 'idle', value: 0 };
