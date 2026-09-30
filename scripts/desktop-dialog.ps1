@@ -9,6 +9,7 @@ using System;
 using System.Text;
 using System.Runtime.InteropServices;
 public static class NativeSaveDialog {
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern IntPtr FindWindow(string className, string title);
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr window);
   [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
   [DllImport("user32.dll")] public static extern IntPtr GetWindow(IntPtr window, uint command);
@@ -23,10 +24,12 @@ public static class NativeSaveDialog {
   }
 }
 '@
-$condition = [Windows.Automation.PropertyCondition]::new([Windows.Automation.AutomationElement]::NameProperty, '保存导出文件')
+# Owned dialogs are nested beneath their owner in UI Automation, not desktop
+# children. Resolve the native dialog first, then inspect its controls with UIA.
 $deadline = [DateTime]::UtcNow.AddSeconds(30)
 do {
-  $dialog = [Windows.Automation.AutomationElement]::RootElement.FindFirst([Windows.Automation.TreeScope]::Children, $condition)
+  $dialogHandle = [NativeSaveDialog]::FindWindow('#32770', '保存导出文件')
+  $dialog = if ($dialogHandle -ne [IntPtr]::Zero) { [Windows.Automation.AutomationElement]::FromHandle($dialogHandle) } else { $null }
   if (-not $dialog) { Start-Sleep -Milliseconds 200 }
 } while (-not $dialog -and [DateTime]::UtcNow -lt $deadline)
 if (-not $dialog) {
@@ -86,6 +89,6 @@ if (-not [NativeSaveDialog]::PostMessage([IntPtr]$button.Current.NativeWindowHan
 $deadline = [DateTime]::UtcNow.AddSeconds(10)
 do {
   Start-Sleep -Milliseconds 200
-  $remaining = [Windows.Automation.AutomationElement]::RootElement.FindFirst([Windows.Automation.TreeScope]::Children, $condition)
-} while ($remaining -and [DateTime]::UtcNow -lt $deadline)
-if ($remaining) { throw '点击保存后另存为窗口未关闭' }
+  $remaining = [NativeSaveDialog]::FindWindow('#32770', '保存导出文件')
+} while ($remaining -ne [IntPtr]::Zero -and [DateTime]::UtcNow -lt $deadline)
+if ($remaining -ne [IntPtr]::Zero) { throw '点击保存后另存为窗口未关闭' }
