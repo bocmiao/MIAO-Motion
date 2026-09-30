@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { SphereGeometry, ConeGeometry, Matrix4, Vector3, Quaternion, Color } from 'three';
+import { SphereGeometry, ConeGeometry, Matrix4, Vector3, Quaternion, Euler, Color } from 'three';
 import { normalizeCharacter } from './character-spec.ts';
 
 export function generateMiao(input = {}) {
@@ -9,11 +9,31 @@ const config = normalizeCharacter(input);
 const parents = [];
 const nodes = [], meshes = [], views = [], accessors = [], chunks = [];
 let length = 0;
+// 动漫感 = cel 着色 + 描边：每个材质同时输出 VRMC_materials_mtoon 扩展（VRM 1.0），
+// PBR 保留做回退——不支持 MToon 的加载器仍能正常显示。
+const mtoonShade = rgb => rgb.map(c => Math.max(0, Math.min(1, c * 0.78)));
+function mtoonExtension(baseColor) {
+  return { VRMC_materials_mtoon: {
+    shadeColorFactor: mtoonShade(baseColor.slice(0, 3)),
+    shadingShiftFactor: 0,
+    shadingToonyFactor: 0.95,
+    rimColorFactor: [0, 0, 0],
+    rimLightingMixFactor: 1,
+    rimFresnelPowerFactor: 5,
+    rimLiftFactor: 0,
+    outlineWidthFactor: 0.5,
+    outlineColorFactor: [0, 0, 0],
+    outlineLightingMixFactor: 1,
+  } };
+}
 const materials = [
   ['毛发', [0.94, 0.84, 0.65, 1]], ['衣服', [0.035, 0.32, 0.32, 1]],
   ['面部深色', [0.035, 0.035, 0.055, 1]], ['耳朵内侧', [1, 0.50, 0.48, 1]],
   ['配饰', [1, 0.63, 0.12, 1]], ['眼白', [1, 0.98, 0.9, 1]],
-].map(([name, color], i) => ({ name, doubleSided: true, pbrMetallicRoughness: { baseColorFactor: i === 0 ? [...new Color(config.colors.fur).toArray(),1] : i === 1 ? [...new Color(config.colors.outfit).toArray(),1] : i === 4 ? [...new Color(config.colors.accent).toArray(),1] : color, metallicFactor: 0, roughnessFactor: 0.85 } }));
+].map(([name, color], i) => {
+  const base = i === 0 ? [...new Color(config.colors.fur).toArray(),1] : i === 1 ? [...new Color(config.colors.outfit).toArray(),1] : i === 4 ? [...new Color(config.colors.accent).toArray(),1] : color;
+  return { name, doubleSided: true, pbrMetallicRoughness: { baseColorFactor: base, metallicFactor: 0, roughnessFactor: 0.85 }, extensions: mtoonExtension(base) };
+});
 function attribute(array, type, bounds = false, componentType = 5126) {
   const data = new Uint8Array(array.buffer, array.byteOffset, array.byteLength);
   views.push({ buffer: 0, byteOffset: length, byteLength: data.length, target: 34962 });
@@ -31,9 +51,9 @@ function node(name, position, parent) {
   if (parent !== undefined) (nodes[parent].children ??= []).push(id);
   return id;
 }
-function shape(parent, name, position, scale, material, kind = 'sphere', morphs = []) {
-  const geometry = (kind === 'cone' ? new ConeGeometry(1, 2, 3) : new SphereGeometry(1, 18, 12)).toNonIndexed();
-  geometry.applyMatrix4(new Matrix4().compose(new Vector3(), new Quaternion(), new Vector3(...scale)));
+function shape(parent, name, position, scale, material, kind = 'sphere', morphs = [], rotation = [0, 0, 0]) {
+  const geometry = (kind === 'cone' ? new ConeGeometry(1, 2, 16) : new SphereGeometry(1, 18, 12)).toNonIndexed();
+  geometry.applyMatrix4(new Matrix4().compose(new Vector3(), new Quaternion().setFromEuler(new Euler(rotation[0], rotation[1], rotation[2])), new Vector3(...scale)));
   const vertices = geometry.getAttribute('position').array;
   const primitive = { attributes: { POSITION: attribute(vertices, 'VEC3', true), NORMAL: attribute(geometry.getAttribute('normal').array, 'VEC3') }, material };
   if (morphs.length) primitive.targets = morphs.map(transform => {
@@ -49,16 +69,20 @@ function shape(parent, name, position, scale, material, kind = 'sphere', morphs 
   const id = node(name, position, parent); nodes[id].mesh = mesh;
   geometry.dispose(); return id;
 }
-materials.push({ name: '瞳孔', doubleSided: true, pbrMetallicRoughness: { baseColorFactor: [...new Color(config.colors.eyes).toArray(),1], metallicFactor:0, roughnessFactor:0.7 } });
+// 发片式头发：扁平拉伸的椭球沿头部分布（替代原来的 3 边锥体发簇）。
+const strand = (parent, name, position, scale, rotation) => shape(parent, name, position, scale, 0, 'sphere', [], rotation);
+const pupilBase = [...new Color(config.colors.eyes).toArray(),1];
+materials.push({ name: '瞳孔', doubleSided: true, pbrMetallicRoughness: { baseColorFactor: pupilBase, metallicFactor:0, roughnessFactor:0.7 }, extensions: mtoonExtension(pupilBase) });
 const bones = {};
 const bone = (name, xyz, parent) => { bones[name] = { node: node(name, xyz, parent) }; return bones[name].node; };
+const body = config.body;
 const hips = bone('hips', [0, 0.66, 0]);
 const spine = bone('spine', [0, 0.13, 0], hips);
 const chest = bone('chest', [0, 0.16, 0], spine);
 const neck = bone('neck', [0, 0.12, 0], chest);
 const head = bone('head', [0, 0.17, 0], neck);
-shape(hips, '裤子', [0, 0, 0], [0.18*config.proportions.width, 0.14, 0.13], 1);
-shape(spine, '上衣', [0, 0.035, 0], [0.20*config.proportions.width, 0.23, 0.14], 1);
+shape(hips, '裤子', [0, 0, 0], [0.18*config.proportions.width*body.hipWidth, 0.14, 0.13], 1);
+shape(spine, '上衣', [0, 0.035, 0], [0.20*config.proportions.width*body.waistWidth, 0.23, 0.14], 1);
 const part = (category, choice, parent, visible = true) => {
   const id = node(`miao_part_${category}_${choice}`, [0,0,0], parent);
   nodes[id].scale = visible ? [1,1,1] : [0,0,0]; return id;
@@ -70,33 +94,40 @@ shape(hoodie, '兜帽', [0,0.09,-0.055], [0.18,0.11,0.13], 1);
 shape(hoodie, '帽绳左', [-0.055,0.012,0.14], [0.009,0.075,0.01], 4);
 shape(hoodie, '帽绳右', [0.055,0.012,0.14], [0.009,0.075,0.01], 4);
 shape(head, '猫咪头部', [0, 0.035, 0], [0.27, 0.23, 0.22], 0);
+// 耳朵：大小 / 尖度可调（v2 面部细节）。
+const earSize = config.face.ears.size, earSharp = 1 + config.face.ears.point * 0.45;
 const pointed = part('ears', 'pointed', head), round = part('ears', 'round', head, false);
 for (const sign of [-1, 1]) {
-  shape(pointed, `尖耳${sign}`, [sign*0.18,0.25,0], [0.105,0.13,0.07], 0, 'cone');
-  shape(pointed, `尖内耳${sign}`, [sign*0.18,0.25,0.045], [0.065,0.085,0.012], 3, 'cone');
-  shape(round, `圆耳${sign}`, [sign*0.205,0.22,0], [0.09,0.105,0.06], 0);
-  shape(round, `圆内耳${sign}`, [sign*0.205,0.22,0.045], [0.052,0.067,0.012], 3);
+  shape(pointed, `尖耳${sign}`, [sign*0.18,0.25,0], [0.105*earSize,0.13*earSize*earSharp,0.07*earSize], 0, 'cone');
+  shape(pointed, `尖内耳${sign}`, [sign*0.18,0.25,0.045], [0.065*earSize,0.085*earSize*earSharp,0.012], 3, 'cone');
+  shape(round, `圆耳${sign}`, [sign*0.205,0.22,0], [0.09*earSize,0.105*earSize*(1+config.face.ears.point*0.15),0.06*earSize], 0);
+  shape(round, `圆内耳${sign}`, [sign*0.205,0.22,0.045], [0.052*earSize,0.067*earSize,0.012], 3);
 }
 const longTail = part('tail', 'long', hips), shortTail = part('tail', 'short', hips, false);
 shape(longTail, '长尾根', [0.16,-0.025,-0.16], [0.11,0.055,0.13], 0);
 shape(longTail, '长尾尖', [0.255,0.07,-0.22], [0.06,0.16,0.06], 0);
 shape(shortTail, '短尾球', [0.12,-0.005,-0.17], [0.085,0.085,0.10], 0);
 const tuft = part('hair', 'tuft', head); part('hair', 'smooth', head, false);
-shape(tuft, '头顶发簇', [0,0.25,0.095], [0.073,0.071,0.048], 0, 'cone');
+strand(tuft, '头顶发片中', [0, 0.27, 0.06], [0.05, 0.15, 0.032], [0.35, 0, 0]);
+strand(tuft, '头顶发片左', [-0.075, 0.25, 0.05], [0.045, 0.13, 0.03], [0.3, 0, 0.4]);
+strand(tuft, '头顶发片右', [0.075, 0.25, 0.05], [0.045, 0.13, 0.03], [0.3, 0, -0.4]);
 // Additional parts share the same bone anchors and rounded silhouette.
 const tall = part('ears','tall',head,false), folded = part('ears','folded',head,false);
 for (const sign of [-1,1]) {
-  shape(tall,'高耳',[sign*0.18,0.30,0],[0.075,0.18,0.065],0,'cone');
-  shape(tall,'高内耳',[sign*0.18,0.30,0.044],[0.045,0.12,0.012],3,'cone');
-  shape(folded,'折耳',[sign*0.235,0.18,0.01],[0.12,0.065,0.10],0);
-  shape(folded,'折内耳',[sign*0.235,0.18,0.085],[0.07,0.035,0.012],3);
+  shape(tall,'高耳',[sign*0.18,0.30,0],[0.075*earSize,0.18*earSize*earSharp,0.065*earSize],0,'cone');
+  shape(tall,'高内耳',[sign*0.18,0.30,0.044],[0.045*earSize,0.12*earSize*earSharp,0.012],3,'cone');
+  shape(folded,'折耳',[sign*0.235,0.18,0.01],[0.12*earSize,0.065*earSize,0.10*earSize],0);
+  shape(folded,'折内耳',[sign*0.235,0.18,0.085],[0.07*earSize,0.035*earSize,0.012],3);
 }
 const fluffy=part('tail','fluffy',hips,false), curled=part('tail','curled',hips,false);
 shape(fluffy,'蓬松尾',[0.23,0.04,-0.22],[0.12,0.21,0.11],0);
 for(let i=0;i<6;i++) { const t=i*Math.PI/6; shape(curled,'卷尾'+i,[0.18+Math.sin(t)*0.12,0.02+Math.cos(t)*0.12,-0.20],[0.055,0.055,0.065],0); }
 const sideHair=part('hair','side',head,false), doubleHair=part('hair','double',head,false);
-shape(sideHair,'侧刘海',[-0.11,0.22,0.13],[0.14,0.065,0.08],0);
-for(const sign of [-1,1]) shape(doubleHair,'双发簇',[sign*0.07,0.25,0.08],[0.065,0.09,0.055],0,'cone');
+for (const [i, x] of [[0,-0.12],[1,0],[2,0.12]]) strand(sideHair, '前发片'+i, [x,0.21,0.155], [0.06,0.115,0.032], [0.15,0,-x*1.2]);
+for (const sign of [-1,1]) {
+  strand(doubleHair, '双发片上'+sign, [sign*0.07,0.27,0.06], [0.05,0.13,0.032], [0.3,0,-sign*0.35]);
+  strand(doubleHair, '双发片下'+sign, [sign*0.10,0.20,0.09], [0.045,0.11,0.03], [0.15,0,-sign*0.5]);
+}
 const scarf=part('clothes','scarf',chest,false), bow=part('clothes','bow',chest,false);
 shape(scarf,'围巾领',[0,0.07,0.03],[0.14,0.04,0.13],4);
 shape(scarf,'围巾尾',[-0.07,-0.03,0.16],[0.035,0.13,0.025],4);
@@ -110,20 +141,25 @@ for (const [side, sign] of [['left', 1], ['right', -1]]) {
   shape(eye, `${side}高光`, [-0.007, 0.02, 0.024], [0.008, 0.009, 0.006], 5);
   browNodes.push(shape(head, `${side}眉毛`, [0.09*sign,0.135,0.19], [config.face.brows === 'short' ? 0.03 : 0.048,config.face.brows === 'bold' ? 0.015 : 0.009,0.012], 2, 'sphere',
     [(x,y,z)=>[x,y+x*sign*0.5,z], (x,y,z)=>[x,y-x*sign*0.5,z]]));
-  const upperArm = bone(`${side}UpperArm`, [sign * 0.20, 0.03, 0], chest);
+  const upperArm = bone(`${side}UpperArm`, [sign * 0.20 * body.shoulderWidth, 0.03, 0], chest);
   const lowerArm = bone(`${side}LowerArm`, [sign * 0.20, 0, 0], upperArm);
   const hand = bone(`${side}Hand`, [sign * 0.18, 0, 0], lowerArm);
-  shape(upperArm, `${side}袖子`, [sign * 0.10,0,0], [0.13,0.071,0.075],1);
+  shape(upperArm, `${side}袖子`, [sign * 0.10,0,0], [0.13*body.shoulderWidth,0.071,0.075],1);
   shape(lowerArm, `${side}手臂`, [sign * 0.08,0,0], [0.12,0.061,0.065],0);
   shape(hand, `${side}猫爪`, [sign * 0.025,0,0], [0.073,0.066,0.071],0);
   const upperLeg = bone(`${side}UpperLeg`, [sign * 0.095,-0.04,0], hips);
-  const lowerLeg = bone(`${side}LowerLeg`, [0,-0.25,0], upperLeg);
-  const foot = bone(`${side}Foot`, [0,-0.25,0], lowerLeg);
-  shape(upperLeg, `${side}裤腿`, [0,-0.12,0], [0.082,0.16,0.087],1);
+  const lowerLeg = bone(`${side}LowerLeg`, [0,-0.25*body.height,0], upperLeg);
+  const foot = bone(`${side}Foot`, [0,-0.25*body.height,0], lowerLeg);
+  shape(upperLeg, `${side}裤腿`, [0,-0.12,0], [0.082*body.hipWidth,0.16,0.087],1);
   shape(lowerLeg, `${side}小腿`, [0,-0.10,0], [0.063,0.15,0.065],0);
   shape(foot, `${side}鞋子`, [0,-0.015,0.055], [0.08,0.059,0.12],1);
 }
-shape(head, '鼻子', [0,0.015,0.22], [0.021,0.015,0.018],3);
+// v2 面部细节：鼻梁宽 / 鼻尖 / 鼻子立体、脸颊饱满、下巴宽。
+const noseCfg = config.face.nose;
+shape(head, '鼻子', [0,0.015,0.22], [0.021*noseCfg.bridgeWidth,0.015*noseCfg.definition,0.018*noseCfg.tip], 3);
+const cheekFull = config.face.cheeks.fullness, chinWidth = config.face.chin.width;
+for (const sign of [-1, 1]) shape(head, `脸颊${sign}`, [sign*0.105,-0.03,0.165], [0.055*cheekFull,0.05*cheekFull,0.035], 0);
+shape(head, '下巴', [0,-0.088,0.182], [0.052*chinWidth,0.036,0.036], 0);
 const mouth = shape(head, '嘴巴', [0,-0.048,0.208], [config.face.mouth === 'small' ? 0.028 : 0.043,config.face.mouth === 'open' ? 0.021 : 0.012,0.016],2,'sphere',[(x,y,z)=>[x,y*5,z],(x,y,z)=>[x*1.2,y+x*x*12,z],(x,y,z)=>[x,y-x*x*12,z]]);
 const bind = (node,index) => ({ node,index,weight:1 });
 const preset = {
@@ -149,7 +185,7 @@ const resizeHead = id => {
   for (const child of n.children ?? []) resizeHead(child);
 };
 for (const child of nodes[head].children ?? []) resizeHead(child);
-const gltf = { asset:{version:'2.0',generator:'MIAO Motion original procedural mascot'},scene:0,scenes:[{nodes:[hips]}], nodes, meshes, materials, bufferViews:views, accessors, buffers:[{byteLength:length}],extensionsUsed:['VRMC_vrm'],extensions:{VRMC_vrm:{specVersion:'1.0',meta:{name:'喵小动 · 原创猫咪',version:'1',authors:['MIAO Motion contributors'],copyrightInformation:'Original procedural geometry; source in scripts/generate-miao-avatar.mjs',licenseUrl:'https://vrm.dev/licenses/1.0/',avatarPermission:'everyone',commercialUsage:'corporation',creditNotation:'unnecessary',allowRedistribution:true,modification:'allowModificationRedistribution',allowExcessivelyViolentUsage:false,allowExcessivelySexualUsage:false,allowPoliticalOrReligiousUsage:false,allowAntisocialOrHateUsage:false},humanoid:{humanBones:bones},expressions:{preset},lookAt:{type:'bone',offsetFromHeadBone:[0,0.065,0.2],rangeMapHorizontalInner:range,rangeMapHorizontalOuter:range,rangeMapVerticalDown:range,rangeMapVerticalUp:range}}}};
+const gltf = { asset:{version:'2.0',generator:'MIAO Motion original procedural mascot'},scene:0,scenes:[{nodes:[hips]}], nodes, meshes, materials, bufferViews:views, accessors, buffers:[{byteLength:length}],extensionsUsed:['VRMC_vrm','VRMC_materials_mtoon'],extensions:{VRMC_vrm:{specVersion:'1.0',meta:{name:'喵小动 · 原创猫咪',version:'1',authors:['MIAO Motion contributors'],copyrightInformation:'Original procedural geometry; source in scripts/generate-miao-avatar.mjs',licenseUrl:'https://vrm.dev/licenses/1.0/',avatarPermission:'everyone',commercialUsage:'corporation',creditNotation:'unnecessary',allowRedistribution:true,modification:'allowModificationRedistribution',allowExcessivelyViolentUsage:false,allowExcessivelySexualUsage:false,allowPoliticalOrReligiousUsage:false,allowAntisocialOrHateUsage:false},humanoid:{humanBones:bones},expressions:{preset},lookAt:{type:'bone',offsetFromHeadBone:[0,0.065,0.2],rangeMapHorizontalInner:range,rangeMapHorizontalOuter:range,rangeMapVerticalDown:range,rangeMapVerticalUp:range}}}};
 for (const [category, choice] of Object.entries(config.parts)) for (const n of nodes) {
   if (n.name?.startsWith('miao_part_'+category+'_')) n.scale = n.name === 'miao_part_'+category+'_'+choice ? [1,1,1] : [0,0,0];
 }

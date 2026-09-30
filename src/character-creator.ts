@@ -2,10 +2,19 @@ import { characterBases, defaultCharacter, normalizeCharacter, palettes, type Ch
 import { generateMiao } from './generate-miao.mjs';
 import { safeFileName } from './cat-vrm';
 import { saveFile } from './desktop-io';
+import { loadTraitPack, listTraits, type TraitPack } from './trait-pack';
 
 const DRAFT_KEY = 'miao-character-draft-v1';
+// 部件包约定位置：离线美术管线（Blender + vrm-addon-for-blender）产出后放这里；
+// 不存在时静默回退到内置部件。
+const TRAIT_PACK_URL = './assets/traits/manifest.json';
 // Adding a base requires its definition, generator and validated VRM assets; UI/save code is shared.
-const generators: Record<string, (recipe: CharacterRecipe) => Uint8Array<ArrayBuffer>> = { 'miao-cat-v1': generateMiao };
+const generators: Record<string, (recipe: CharacterRecipe) => Uint8Array<ArrayBuffer>> = {
+  'miao-cat-v1': generateMiao,
+  // trait-composer-v1（桩）：CharacterStudio 式 trait 网格合成尚未实现。
+  // 真正实现前不要把 recipe.baseId 设成它；file() 会走到这里并给出明确错误。
+  'trait-composer-v1': () => { throw new Error('trait 合成器尚未实现：请先用“喵小动猫咪”底座'); },
+};
 export function setupCharacterCreator(options: {
   preview: (file: File) => Promise<boolean>;
   save: (file: File, id?: string) => Promise<string>;
@@ -23,10 +32,20 @@ export function setupCharacterCreator(options: {
   const stageHome = stageCard.parentElement!;
   const status = element('creator-status');
   const steps = [...document.querySelectorAll<HTMLElement>('[data-creator-step]')];
-  const names = ['起个名字', '选底座与比例', '捏脸', '头发、耳朵和尾巴', '穿上衣服', '搭配颜色', '开摄像头试动', '保存你的角色'];
+  const names = ['起个名字', '选底座与体型', '捏脸与五官', '头发、耳朵和尾巴', '穿上衣服', '搭配颜色', '开摄像头试动', '保存你的角色'];
   let recipe = structuredClone(defaultCharacter), step = 0, libraryId = '';
   let fromOnboarding = false, previousId = '';
   let revision = 0, rendered = -1, running: Promise<void> | null = null, timer = 0, busy = false;
+  // 外链部件包（trait pack）：有则部件步骤用它（含缩略图），无则回退内置选项。
+  let traitPack: TraitPack | null = null, traitPackTried = false;
+  const ensureTraitPack = () => {
+    if (traitPackTried) return;
+    traitPackTried = true;
+    loadTraitPack(TRAIT_PACK_URL).then(pack => {
+      traitPack = pack;
+      if (dialog.open) { updateBase(); sync(); status.textContent = `已加载部件包“${pack.label}”`; }
+    }).catch(() => { /* 无部件包：用内置部件，不打扰用户 */ });
+  };
   const file = () => {
     const generate = generators[recipe.baseId];
     if (!generate) throw new Error('此底座还不能生成，请保留草稿并更新程序');
@@ -53,14 +72,29 @@ export function setupCharacterCreator(options: {
     try { await running; } finally { running = null; }
   };
   const preview = () => { revision++; clearTimeout(timer); timer = window.setTimeout(() => void render().catch(error => { status.textContent = String(error); }), 180); };
+  // data-field 支持任意深度的点路径，如 face.nose.bridgeWidth。
+  const getField = (path: string[]): unknown => path.reduce<unknown>((obj, key) => (obj as Record<string, unknown>)?.[key], recipe);
+  const setField = (path: string[], value: unknown) => {
+    const last = path[path.length - 1]!;
+    const target = path.slice(0, -1).reduce<Record<string, unknown>>((obj, key) => obj[key] as Record<string, unknown>, recipe as unknown as Record<string, unknown>);
+    target[last] = value;
+  };
+  const refreshThumbs = () => {
+    for (const category of ['ears', 'tail', 'hair', 'clothes'] as const) {
+      const strip = document.getElementById(`creator-${category}-thumbs`);
+      if (!strip) continue;
+      const current = recipe.parts[category];
+      for (const img of strip.querySelectorAll('img')) img.classList.toggle('selected', img.dataset.traitId === current);
+    }
+  };
   const sync = () => {
     for (const input of form.querySelectorAll<HTMLInputElement | HTMLSelectElement>('[data-field]')) {
-      const [section, key] = input.dataset.field!.split('.');
-      const value = key ? (recipe[section as keyof CharacterRecipe] as Record<string, unknown>)[key] : recipe[section as keyof CharacterRecipe];
+      const value = getField(input.dataset.field!.split('.'));
       input.value = String(value);
       const output = input.nextElementSibling;
       if (input instanceof HTMLInputElement && input.type === 'range' && output instanceof HTMLOutputElement) output.value = `${Math.round(Number(value) * 100)}%`;
     }
+    refreshThumbs();
     steps.forEach((panel, index) => { panel.hidden = step !== index; });
     element('creator-title').textContent = names[step]!;
     element('creator-progress').textContent = `第 ${step + 1} / ${steps.length} 步`;
@@ -74,8 +108,39 @@ export function setupCharacterCreator(options: {
     const base = characterBases.find(base => base.id === recipe.baseId)!;
     for (const [category, choices] of Object.entries(base.parts)) {
       const select = element<HTMLSelectElement>('creator-' + category);
-      select.replaceChildren(...Object.entries(choices).map(([id, name]) => new Option(name, id)));
-      select.closest('label')!.hidden = !Object.keys(choices).length;
+      const traits = listTraits(traitPack, category);
+      const label = select.closest('label')!;
+      let strip = document.getElementById(`creator-${category}-thumbs`);
+      if (traits.length) {
+        select.replaceChildren(...traits.map(trait => new Option(trait.name, trait.id)));
+        if (!strip) {
+          strip = document.createElement('div');
+          strip.id = `creator-${category}-thumbs`;
+          strip.className = 'trait-thumbs';
+          label.append(strip);
+        }
+        strip.replaceChildren(...traits.map(trait => {
+          const img = document.createElement('img');
+          img.className = 'trait-thumb';
+          img.dataset.traitId = trait.id;
+          img.alt = trait.name; img.title = trait.name;
+          if (trait.thumbnail) img.src = trait.thumbnail;
+          else { img.removeAttribute('src'); img.textContent = trait.name; }
+          img.addEventListener('click', () => {
+            select.value = trait.id;
+            select.dispatchEvent(new Event('input', { bubbles: true }));
+          });
+          return img;
+        }));
+      } else {
+        select.replaceChildren(...Object.entries(choices).map(([id, name]) => new Option(name, id)));
+        strip?.remove();
+      }
+      // 部件包里的选项 recipe 里可能没有：回退到第一个可用项。
+      if (![...select.options].some(option => option.value === recipe.parts[category as keyof typeof recipe.parts])) {
+        recipe.parts[category as keyof typeof recipe.parts] = select.options[0]?.value ?? '';
+      }
+      select.closest('label')!.hidden = !select.options.length;
     }
     element('creator-presets').replaceChildren(...base.presets.map(preset => {
       const button = document.createElement('button'); button.type = 'button'; button.className = 'soft-button'; button.textContent = preset.label;
@@ -86,13 +151,12 @@ export function setupCharacterCreator(options: {
   form.addEventListener('input', event => {
     const input = event.target as HTMLInputElement;
     if (!input.dataset.field || busy) return;
-    const [section, key] = input.dataset.field.split('.');
+    const path = input.dataset.field.split('.');
     const value = input.type === 'range' ? Number(input.value) : input.value;
-    if (key) (recipe[section as keyof CharacterRecipe] as Record<string, unknown>)[key] = value;
-    else if (section === 'name') recipe.name = String(value);
-    else if (section === 'baseId') { recipe.baseId = String(value); updateBase(); }
+    setField(path, path[0] === 'name' ? String(value) : value);
+    if (path[0] === 'baseId') updateBase();
     // Do not reset the text cursor while typing a name (including an IME composition).
-    if (section !== 'name') sync();
+    if (path[0] !== 'name') sync();
     saveDraft(); preview();
   });
   element('creator-palettes').replaceChildren(...palettes.map(palette => {
@@ -102,9 +166,20 @@ export function setupCharacterCreator(options: {
   }));
   element('creator-random').addEventListener('click', () => {
     const pick = <T>(items: readonly T[]) => items[Math.floor(Math.random() * items.length)]!;
+    const jitter = (low: number, high: number) => low + Math.random() * (high - low);
     if (step === 0) recipe.name = pick(['奶茶', '布丁', '栗子', '团子', '云朵']) + '猫';
-    if (step === 1) { recipe.proportions = { head: 0.85 + Math.random() * 0.35, width: 0.85 + Math.random() * 0.35 }; }
-    if (step === 2) recipe.face = { eyeShape: pick(['oval', 'round', 'gentle']), eyeSize: 0.8 + Math.random() * 0.4, brows: pick(['natural', 'short', 'bold']), mouth: pick(['natural', 'small', 'open']) };
+    if (step === 1) {
+      recipe.proportions = { head: 0.85 + Math.random() * 0.35, width: 0.85 + Math.random() * 0.35 };
+      recipe.body = { height: jitter(0.9, 1.2), shoulderWidth: jitter(0.85, 1.2), waistWidth: jitter(0.85, 1.2), hipWidth: jitter(0.85, 1.2) };
+    }
+    if (step === 2) recipe.face = {
+      ...recipe.face,
+      eyeShape: pick(['oval', 'round', 'gentle']), eyeSize: 0.8 + Math.random() * 0.4,
+      brows: pick(['natural', 'short', 'bold']), mouth: pick(['natural', 'small', 'open']),
+      nose: { bridgeWidth: jitter(0.85, 1.25), tip: jitter(0.85, 1.25), definition: jitter(0.85, 1.25) },
+      cheeks: { fullness: jitter(0.85, 1.25) }, chin: { width: jitter(0.85, 1.25) },
+      ears: { size: jitter(0.85, 1.25), point: Math.random() },
+    };
     const base = characterBases.find(base => base.id === recipe.baseId)!;
     for (const category of (step === 3 ? ['ears', 'tail', 'hair'] : step === 4 ? ['clothes'] : []) as (keyof CharacterRecipe['parts'])[]) recipe.parts[category] = pick(Object.keys(base.parts[category]));
     if (step === 5) { const { label: _, ...colors } = pick(palettes); recipe.colors = colors; }
@@ -159,6 +234,7 @@ export function setupCharacterCreator(options: {
         libraryId = typeof draft?.libraryId === 'string' ? draft.libraryId : '';
       }
       (document.getElementById('onboarding-dialog') as HTMLDialogElement).close();
+      ensureTraitPack();
       updateBase(); sync();
       element('creator-preview').append(stageCard);
       document.body.classList.add('creating-character');

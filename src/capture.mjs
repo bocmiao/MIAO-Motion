@@ -32,3 +32,28 @@ export async function createWithGpuFallback(create, options, onFallback = () => 
     return create({ ...options, baseOptions: { ...options.baseOptions, delegate: 'CPU' } });
   }
 }
+
+/**
+ * 推理耗时健康检查：有些设备上 GPU delegate 能创建成功，但推理极慢或持续抛错，
+ * 创建期的回退覆盖不到。连续 sampleSize 帧平均耗时超过 slowThresholdMs，
+ * 或连续抛错 maxErrors 次时触发一次 onDegrade，由调用方决定如何降级（如重建 CPU 实例）。
+ */
+export function createInferenceHealthMonitor({ onDegrade, slowThresholdMs = 100, sampleSize = 30, maxErrors = 5 } = {}) {
+  let samples = 0, totalMs = 0, errors = 0, degraded = false;
+  return {
+    get degraded() { return degraded; },
+    observe(durationMs) {
+      if (degraded || !Number.isFinite(durationMs)) return;
+      totalMs += durationMs;
+      if (++samples >= sampleSize) {
+        const avg = totalMs / samples;
+        samples = 0; totalMs = 0;
+        if (avg > slowThresholdMs) { degraded = true; onDegrade?.('slow', avg); }
+      }
+    },
+    observeError() {
+      if (!degraded && ++errors >= maxErrors) { degraded = true; onDegrade?.('error'); }
+    },
+    reset() { samples = 0; totalMs = 0; errors = 0; degraded = false; },
+  };
+}

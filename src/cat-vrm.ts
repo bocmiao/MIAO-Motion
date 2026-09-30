@@ -1,7 +1,9 @@
 export const catChoices = { ears: ['pointed', 'round', 'tall', 'folded'], tail: ['long', 'short', 'fluffy', 'curled'], hair: ['tuft', 'smooth', 'side', 'double'], clothes: ['badge', 'hoodie', 'scarf', 'bow'] } as const;
+/** 注意：新增内置部件分类时，需同步更新 character-spec.ts 的 partOptions（Node 单测要求 .ts 文件内不用相对裸导入，见 tests/cat-vrm.test.mjs）。 */
 export type CatCategory = keyof typeof catChoices;
 export type CatStyle = { name: string } & Record<CatCategory, string>;
 type Accessor = { bufferView?: number; byteOffset?: number; componentType: number; count: number; type: string; min?: number[]; max?: number[]; sparse?: unknown };
+type CatMaterial = { name?: string; pbrMetallicRoughness?: { baseColorFactor?: number[] }; extensions?: { VRMC_materials_mtoon?: { shadeColorFactor?: number[] } } };
 type CatDocument = {
   asset: { generator?: string };
   extras?: { miaoCharacter?: { name: string; parts: Record<string, string>; colors: Record<string, string> } };
@@ -9,7 +11,7 @@ type CatDocument = {
   meshes?: { primitives: { attributes: Record<string, number>; targets?: Record<string, number>[] }[] }[];
   accessors?: Accessor[];
   bufferViews?: { byteOffset?: number; byteLength: number; byteStride?: number }[];
-  materials: { name?: string; pbrMetallicRoughness?: { baseColorFactor?: number[] } }[];
+  materials: CatMaterial[];
   extensions: { VRMC_vrm: { meta: { name: string } } };
 };
 export function readCat(buffer: ArrayBuffer) {
@@ -20,7 +22,7 @@ export function readCat(buffer: ArrayBuffer) {
   if (20 + length + 8 > buffer.byteLength) throw new Error('VRM 数据不完整');
   const document = JSON.parse(new TextDecoder().decode(new Uint8Array(buffer, 20, length))) as CatDocument;
   if (document.asset.generator !== 'MIAO Motion original procedural mascot') throw new Error('仅适用于喵小动');
-  const style: CatStyle = { name: document.extensions.VRMC_vrm.meta.name, ears: 'pointed', tail: 'long', hair: 'tuft', clothes: 'badge' };
+  const style = { name: document.extensions.VRMC_vrm.meta.name, ...Object.fromEntries(Object.keys(catChoices).map(category => [category, catChoices[category as CatCategory][0]])) } as CatStyle;
   for (const category of Object.keys(catChoices) as CatCategory[]) {
     const selected = catChoices[category].find(choice => document.nodes.some(n => n.name === `miao_part_${category}_${choice}` && n.scale?.[0] === 1));
     if (!selected) throw new Error('请使用首页的新版喵小动');
@@ -71,6 +73,9 @@ export function exportCat(buffer: ArrayBuffer, style: CatStyle, colors: Record<s
     if (color?.length === 3 && color.every(x => Number.isFinite(x) && x >= 0 && x <= 1) && material.pbrMetallicRoughness) {
       const alpha = material.pbrMetallicRoughness.baseColorFactor?.[3] ?? 1;
       material.pbrMetallicRoughness.baseColorFactor = [...color, alpha];
+      // MToon 的阴影色由主色派生：换色时保持同步，否则描边/明暗会和主色脱节。
+      const mtoon = material.extensions?.VRMC_materials_mtoon;
+      if (mtoon && Array.isArray(mtoon.shadeColorFactor)) mtoon.shadeColorFactor = color.map(x => Math.max(0, Math.min(1, x * 0.78)));
     }
   }
   if (document.extras?.miaoCharacter) {
