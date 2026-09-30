@@ -63,9 +63,20 @@ test('native output renders real small-target pixels and reports slow delivery h
   await page.locator('#quick-miao').click();
   await expect(page.locator('#stage')).toHaveAttribute('data-render-ready', 'true');
   await page.locator('#background-toggle').click();
+  await page.locator('#render-quality').evaluate(input => { input.value = 'performance'; input.dispatchEvent(new Event('change', { bubbles: true })); });
   await page.getByText('原生虚拟摄像头（Windows）', { exact: true }).click();
   await page.locator('#native-camera-toggle').click();
-  await expect.poll(() => page.evaluate(() => window.__frames.length)).toBeGreaterThanOrEqual(4);
+  // Software rendering may deliberately pace below 1 FPS. Allow time to gather
+  // samples, but fail immediately if an individual UI query cannot respond.
+  await expect.poll(async () => {
+    let timer;
+    try {
+      return await Promise.race([
+        page.evaluate(() => window.__frames.length),
+        new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Output blocked the UI for 5 seconds')), 5000); }),
+      ]);
+    } finally { clearTimeout(timer); }
+  }, { timeout: 60_000 }).toBeGreaterThanOrEqual(4);
   const frames = await page.evaluate(() => window.__frames);
   expect(frames.every(frame => frame.length === 640 * 360 * 3 && frame.green > 1000 && frame.other > 100)).toBe(true);
   const shown = Number(await page.locator('#native-camera-status').getAttribute('data-fps'));
