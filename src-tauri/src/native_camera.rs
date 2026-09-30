@@ -1,8 +1,8 @@
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use tauri::Manager;
 
 #[derive(Default)]
-pub struct Camera(pub Mutex<Option<Sender>>);
+pub struct Camera(pub Arc<Mutex<Option<Sender>>>);
 
 pub struct Sender {
     library: libloading::Library,
@@ -21,8 +21,10 @@ fn component(app: &tauri::AppHandle, name: &str) -> Result<std::path::PathBuf, S
 }
 
 #[tauri::command]
-pub fn native_camera_start(app: tauri::AppHandle, state: tauri::State<'_, Camera>) -> Result<(), String> {
-    let mut guard = state.0.lock().map_err(|_| "摄像头不可用")?;
+pub async fn native_camera_start(app: tauri::AppHandle, state: tauri::State<'_, Camera>) -> Result<(), String> {
+    let camera = state.0.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+    let mut guard = camera.lock().map_err(|_| "摄像头不可用")?;
     if guard.is_some() { return Ok(()); }
     unsafe {
         let library = libloading::Library::new(component(&app, "softcam.dll")?).map_err(|_| "未找到虚拟摄像头组件，请安装完整版喵动")?;
@@ -32,16 +34,28 @@ pub fn native_camera_start(app: tauri::AppHandle, state: tauri::State<'_, Camera
         *guard = Some(Sender { library, handle });
     }
     Ok(())
+    }).await.map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-pub fn native_camera_stop(state: tauri::State<'_, Camera>) { if let Ok(mut s) = state.0.lock() { *s = None; } }
+pub async fn native_camera_stop(state: tauri::State<'_, Camera>) -> Result<(), String> {
+    let camera = state.0.clone();
+    // Softcam teardown can wait for native receiver threads. Never hold the
+    // Tauri/Win32 event loop while creating, sending to, or destroying it.
+    tauri::async_runtime::spawn_blocking(move || {
+        *camera.lock().map_err(|_| "摄像头不可用")? = None;
+        Ok(())
+    }).await.map_err(|e| e.to_string())?
+}
 
 #[tauri::command]
-pub fn native_camera_frame(request: tauri::ipc::Request<'_>, state: tauri::State<'_, Camera>) -> Result<bool, String> {
+pub async fn native_camera_frame(request: tauri::ipc::Request<'_>, state: tauri::State<'_, Camera>) -> Result<bool, String> {
     let tauri::ipc::InvokeBody::Raw(data) = request.body() else { return Err("需要二进制帧".into()); };
     if data.len() != 640 * 360 * 3 { return Err("帧尺寸不正确".into()); }
-    let guard = state.0.lock().map_err(|_| "摄像头不可用")?;
+    let data = data.clone();
+    let camera = state.0.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+    let guard = camera.lock().map_err(|_| "摄像头不可用")?;
     let sender = guard.as_ref().ok_or("虚拟摄像头尚未开启")?;
     unsafe {
         let send = sender.library.get::<unsafe extern "C" fn(usize, *const u8)>(b"scSendFrame").map_err(|e| e.to_string())?;
@@ -49,6 +63,7 @@ pub fn native_camera_frame(request: tauri::ipc::Request<'_>, state: tauri::State
         send(sender.handle, data.as_ptr());
         Ok(connected(sender.handle))
     }
+    }).await.map_err(|e| e.to_string())?
 }
 
 #[tauri::command]

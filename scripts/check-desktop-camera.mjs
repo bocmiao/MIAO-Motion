@@ -14,7 +14,7 @@ const bounded = async (promise, label, timeout = 5000) => {
   try { return await Promise.race([promise, new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(label + ' exceeded ' + timeout + ' ms')), timeout); })]); }
   finally { clearTimeout(timer); }
 };
-const query = (fn, arg) => bounded(page.evaluate(fn, arg), 'WebView2 query');
+const query = (fn, arg) => bounded(page.evaluate(fn, arg), 'WebView2 query: ' + fn.toString().slice(0, 100));
 let lastMetrics = null;
 mkdirSync('test-results', { recursive: true });
 const errors = [];

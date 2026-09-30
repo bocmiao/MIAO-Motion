@@ -47,6 +47,7 @@ test('native output renders real small-target pixels and reports slow delivery h
     window.isTauri = true;
     window.__frames = [];
     window.__TAURI_INTERNALS__ = { invoke: async (command, pixels) => {
+      if (command === 'native_camera_stop') await new Promise(resolve => setTimeout(resolve, 1500));
       if (command === 'native_camera_frame') {
         let green = 0, other = 0;
         for (let i = 0; i < pixels.length; i += 3) {
@@ -82,5 +83,8 @@ test('native output renders real small-target pixels and reports slow delivery h
   const shown = Number(await page.locator('#native-camera-status').getAttribute('data-fps'));
   expect(shown).toBeGreaterThan(0); expect(shown).toBeLessThan(1.7);
   await page.locator('#native-camera-toggle').click({ timeout: 5000 });
-  await expect(page.locator('#native-camera-status')).toContainText('已停止');
+  await expect(page.locator('#native-camera-toggle')).toBeDisabled();
+  await expect(page.locator('#native-camera-status')).toContainText('等待摄像头组件停止');
+  await expect(page.locator('#native-camera-status')).toContainText('已停止', { timeout: 5000 });
+  await expect(page.locator('#native-camera-toggle')).toBeEnabled();
 });

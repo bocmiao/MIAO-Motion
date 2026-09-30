@@ -20,17 +20,22 @@ export function setupNativeCamera(renderer: WebGLRenderer, scene: Scene, camera:
       if (state?.legacy === true) status.textContent = LEGACY_COMPONENT_WARNING;
     } catch { /* Older desktop builds lack this command; the rest of the panel keeps working. */ }
   };
-  const stop = () => { generation++; active = false; pacer.reset(); void invoke('native_camera_stop').catch(() => {}); button.textContent = '开始虚拟摄像头输出'; };
+  const stop = async () => {
+    generation++; active = false; pacer.reset(); button.disabled = true;
+    button.textContent = '正在停止虚拟摄像头…';
+    try { await invoke('native_camera_stop'); }
+    finally { button.textContent = '开始虚拟摄像头输出'; button.disabled = installing; }
+  };
   for (const [id, remove] of [['native-camera-install', false], ['native-camera-remove', true]] as const) {
     const control = document.getElementById(id) as HTMLButtonElement;
     control.disabled = !isTauri();
     control.addEventListener('click', async () => {
       if (installing) return;
       installing = true;
-      if (remove) stop();
       for (const id of ['native-camera-install', 'native-camera-remove', 'native-camera-toggle']) (document.getElementById(id) as HTMLButtonElement).disabled = true;
       status.textContent = '等待 Windows 权限确认…画面可以继续使用。';
       try {
+        if (remove) await stop();
         await invoke('native_camera_install', { remove }); status.textContent = remove ? '虚拟摄像头已注销' : '虚拟摄像头已安装，请重新打开接收软件';
         await checkComponent();
       } catch (error) { status.textContent = String(error); }
@@ -43,7 +48,12 @@ export function setupNativeCamera(renderer: WebGLRenderer, scene: Scene, camera:
   button.disabled = !isTauri();
   if (!isTauri()) status.textContent = '原生输出需要 Windows 安装版；便携浏览器版可使用 OBS。';
   button.addEventListener('click', async () => {
-    if (active) { stop(); status.textContent = '虚拟摄像头输出已停止'; return; }
+    if (active) {
+      status.textContent = '正在等待摄像头组件停止…';
+      try { await stop(); status.textContent = '虚拟摄像头输出已停止'; }
+      catch (error) { status.textContent = `停止失败：${String(error)}`; }
+      return;
+    }
     if (!ready()) { status.textContent = '请先加载角色并等待画面准备好'; return; }
     const request = ++generation; button.disabled = true;
     try {
@@ -54,7 +64,7 @@ export function setupNativeCamera(renderer: WebGLRenderer, scene: Scene, camera:
     } catch (error) { status.textContent = String(error); }
     finally { button.disabled = false; }
   });
-  window.addEventListener('pagehide', stop);
+  window.addEventListener('pagehide', () => { void stop().catch(() => {}); });
   void checkComponent();
   return { tick(now: number) {
     if (!active || busy || now - last < pacer.interval) return;
@@ -75,6 +85,6 @@ export function setupNativeCamera(renderer: WebGLRenderer, scene: Scene, camera:
       status.dataset.fps = String(pacer.deliveredFps ?? 0);
       const rate = pacer.deliveredFps === null ? '正在测量帧率' : `实际 ${pacer.deliveredFps.toFixed(1)} 帧/秒（上限 ${MAX_FPS}）`;
       status.textContent = connected ? `接收软件已连接 · 640×360 · ${rate}` : `正在输出，等待接收软件选择 MIAO Motion Camera · ${rate}`;
-    }).catch(error => { if (request === generation) { stop(); status.textContent = `输出已停止：${String(error)}`; } }).finally(() => { busy = false; });
+    }).catch(async error => { if (request === generation) { await stop().catch(() => {}); status.textContent = `输出已停止：${String(error)}`; } }).finally(() => { busy = false; });
   } };
 }
