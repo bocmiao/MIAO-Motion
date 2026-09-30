@@ -15,7 +15,7 @@ export function parsePhonePacket(packet) {
   let head = null;
   let malformedHead = false;
   for (const field of packet.trim().split('|')) {
-    const expression = /^([a-zA-Z]+(?:_[LR])?)\s*[-&]\s*(-?\d+(?:\.\d+)?)$/.exec(field);
+    const expression = /^([a-zA-Z0-9]+(?:_[LR])?)\s*[-&]\s*(-?\d+(?:\.\d+)?)$/.exec(field);
     if (expression) {
       const name = (expression[1] ?? '').replace(/_L$/, 'Left').replace(/_R$/, 'Right');
       const score = Math.min(1, Math.max(0, Number(expression[2]) / 100));

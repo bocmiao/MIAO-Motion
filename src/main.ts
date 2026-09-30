@@ -42,7 +42,7 @@ import {
   type Background,
   type ModelMetrics,
 } from './app-utils.mjs';
-import { cameraConstraints, cameraErrorMessage, createWithGpuFallback, stopMediaStream } from './capture.mjs';
+import { cameraConstraints, cameraErrorMessage, createInferenceHealthMonitor, createWithGpuFallback, stopMediaStream } from './capture.mjs';
 import { broadcastBackground, obsBrowserSourceUrl, restoreBroadcastBackground } from './broadcast.mjs';
 import {
   deleteStoredModel,
@@ -210,15 +210,28 @@ let currentCharacterRecipe: unknown = null;
 let cameraStream: MediaStream | null = null;
 let faceLandmarker: FaceLandmarker | null = null;
 let detectorPromise: Promise<FaceLandmarker> | null = null;
+let detectorOnGpu = false;
+/** 运行时降级用：关闭当前实例，用 CPU 重建（复用已加载的 wasm vision）。 */
+let rebuildDetectorOnCpu: (() => Promise<void>) | null = null;
+let inferenceHealth: ReturnType<typeof createInferenceHealthMonitor> | null = null;
+let detectionRetryTimer = 0;
 let lastVideoTime = -1;
 let lastInferenceAt = 0;
 let lastDetectionAt = 0;
 let faceVisible = false;
 let currentMotion: Motion = { ...EMPTY_MOTION };
 let targetMotion: Motion = { ...EMPTY_MOTION };
-let neutralHead = new THREE.Quaternion();
+let lastPhoneFrame = 0;
+let neutralHeadBySource = {
+  // 摄像头（MediaPipe facialTransformationMatrixes 矩阵空间）与手机（ARKit Euler 按 YXZ 取反 Y/Z 后的四元数）
+  // 坐标系不同，必须各自独立校准，不能共用同一基准。
+  camera: { quaternion: new THREE.Quaternion(), has: false },
+  phone: { quaternion: new THREE.Quaternion(), has: false },
+};
 let latestHead = new THREE.Quaternion();
-let hasNeutral = false;
+/** 手机面捕数据 500ms 内算活跃，优先于摄像头。 */
+const phoneIsActive = () => lastPhoneFrame > 0 && performance.now() - lastPhoneFrame <= 500;
+const activeHeadSource = (): 'camera' | 'phone' => (phoneIsActive() ? 'phone' : 'camera');
 let headRest = new THREE.Quaternion();
 let headTarget = new THREE.Quaternion();
 let chestRest = new THREE.Quaternion();
@@ -253,18 +266,23 @@ for (const id of ['body-tracking', 'onboarding-body']) required<HTMLInputElement
 if (navigator.hardwareConcurrency >= 8) required('#body-recommendation').textContent = '这台电脑可以先试试全身动捕，让手臂和手指一起动；实际是否流畅以试动为准。';
 const catEditor = setupCatEditor(() => currentVrm, () => currentModelId);
 const nativeCamera = setupNativeCamera(renderer, scene, camera, () => Boolean(currentVrm) && stage.dataset.renderReady === 'true');
-let lastPhoneFrame = 0;
 const phone = setupPhone(packet => {
   lastPhoneFrame = performance.now();
   // Packets without a head field still carry expressions; the head keeps its previous pose.
   if (packet.head) {
     latestHead.copy(packet.head);
-    if (!hasNeutral) { neutralHead.copy(latestHead); hasNeutral = true; }
+    const neutral = neutralHeadBySource.phone;
+    if (!neutral.has) {
+      const switched = neutralHeadBySource.camera.has;
+      neutral.quaternion.copy(latestHead);
+      neutral.has = true;
+      if (switched) showToast('已为手机面捕自动校准：建议正对手机后点“一键校准”重新对准');
+    }
   }
   targetMotion = scaleMotion(mirrorFace(solveExpressions(packet.categories) as Motion, settings.mirror), settings.sensitivity);
   lastDetectionAt = lastPhoneFrame; faceVisible = true; detectedFrames++;
   setTrackingState('active', '正在使用手机面捕');
-});
+}, (kind, error) => addDiagnosticEvent(kind, error));
 const faceMatrix = new THREE.Matrix4();
 const faceQuaternion = new THREE.Quaternion();
 const faceScale = new THREE.Vector3();
@@ -667,14 +685,29 @@ const createDetector = async () => {
     outputFaceBlendshapes: true,
     outputFacialTransformationMatrixes: true,
   };
-  return createWithGpuFallback(
+  // 运行时降级用：关闭当前实例，用 CPU 重建（复用已加载的 wasm vision）。
+  rebuildDetectorOnCpu = async () => {
+    const cpu = await FaceLandmarker.createFromOptions(vision, {
+      ...options,
+      baseOptions: { ...options.baseOptions, delegate: 'CPU' as const },
+    });
+    try { faceLandmarker?.close(); } catch { /* 已损坏的实例直接丢弃 */ }
+    faceLandmarker = cpu;
+    detectorPromise = null;
+    detectorOnGpu = false;
+  };
+  let usedCpuFallback = false;
+  const landmarker = await createWithGpuFallback(
     (detectorOptions) => FaceLandmarker.createFromOptions(vision, detectorOptions),
     options,
     (gpuError) => {
-    console.warn('GPU 初始化失败，改用 CPU', gpuError);
-    addDiagnosticEvent('detector-gpu-fallback', gpuError);
+      usedCpuFallback = true;
+      console.warn('GPU 初始化失败，改用 CPU', gpuError);
+      addDiagnosticEvent('detector-gpu-fallback', gpuError);
     },
   );
+  detectorOnGpu = !usedCpuFallback;
+  return landmarker;
 };
 
 const ensureDetector = async () => {
@@ -682,6 +715,24 @@ const ensureDetector = async () => {
   detectorPromise ??= createDetector();
   try {
     faceLandmarker = await detectorPromise;
+    // 只在 GPU 实例上做运行时健康检查：已经是 CPU 时再“降级”没有意义。
+    if (detectorOnGpu && !inferenceHealth) {
+      inferenceHealth = createInferenceHealthMonitor({
+        onDegrade: (reason, detail) => {
+          addDiagnosticEvent('detector-gpu-degraded', reason === 'slow' ? `avg ${Math.round(Number(detail) || 0)}ms` : 'consecutive errors');
+          void (async () => {
+            try {
+              await rebuildDetectorOnCpu?.();
+              showToast('已自动切换到 CPU 推理以保证流畅');
+              setTrackingState('ready', '引擎已就绪 · 等待人脸');
+            } catch (error) {
+              addDiagnosticEvent('detector-cpu-rebuild-error', error);
+              setTrackingState('error', '推理引擎异常，请重启摄像头');
+            }
+          })();
+        },
+      });
+    }
     setTrackingState('ready', '引擎已就绪 · 等待人脸');
     return faceLandmarker;
   } catch (error) {
@@ -698,6 +749,7 @@ const stopCamera = () => {
   cameraStream = null;
   cameraPreview.srcObject = null;
   cameraPreview.hidden = true;
+  if (detectionRetryTimer) { window.clearTimeout(detectionRetryTimer); detectionRetryTimer = 0; }
   cameraStatus.textContent = '尚未开启';
   cameraButton.textContent = '开启摄像头';
   calibrateButton.disabled = true;
@@ -705,7 +757,8 @@ const stopCamera = () => {
   lastVideoTime = -1;
   lastInferenceAt = 0;
   targetMotion = { ...EMPTY_MOTION };
-  if (hasNeutral) latestHead.copy(neutralHead);
+  const stopNeutral = neutralHeadBySource[activeHeadSource()];
+  if (stopNeutral.has) latestHead.copy(stopNeutral.quaternion);
   detectedFrames = 0;
   lastFpsAt = performance.now();
   setTrackingQuality();
@@ -790,9 +843,12 @@ const processDetection = (result: FaceLandmarkerResult) => {
   }
 
   latestHead.copy(head);
-  if (!hasNeutral) {
-    neutralHead.copy(head);
-    hasNeutral = true;
+  const neutral = neutralHeadBySource.camera;
+  if (!neutral.has) {
+    const switched = neutralHeadBySource.phone.has;
+    neutral.quaternion.copy(head);
+    neutral.has = true;
+    if (switched) showToast('已为摄像头自动校准：建议正对镜头后点“一键校准”重新对准');
   }
   targetMotion = scaleMotion(mirrorFace(solveExpressions(categories as Category[]) as Motion, settings.mirror), settings.sensitivity);
   lastDetectionAt = performance.now();
@@ -844,8 +900,9 @@ const applyMotion = (delta: number) => {
   }
 
   const head = currentVrm.humanoid.getNormalizedBoneNode(VRMHumanBoneName.Head);
-  if (head && hasNeutral) {
-    headTarget.copy(headRest).multiply(vrmRotation(relativeHeadRotation(latestHead, neutralHead, settings.sensitivity, settings.mirror), currentVrm.meta.metaVersion));
+  const neutral = neutralHeadBySource[activeHeadSource()];
+  if (head && neutral.has) {
+    headTarget.copy(headRest).multiply(vrmRotation(relativeHeadRotation(latestHead, neutral.quaternion, settings.sensitivity, settings.mirror), currentVrm.meta.metaVersion));
     head.quaternion.slerp(headTarget, alpha);
   }
 
@@ -860,13 +917,15 @@ const applyMotion = (delta: number) => {
 const calibrate = () => {
   if (!faceVisible) {
     onboardingFinishState.textContent = '还没有检测到人脸：请正对镜头，等状态显示“正在驱动角色”后再试。';
-    showToast('请先正对摄像头，等状态变为“正在驱动角色”');
+    showToast(phoneIsActive() ? '请先正对手机，等状态变为“正在驱动角色”' : '请先正对摄像头，等状态变为“正在驱动角色”');
     return;
   }
-  neutralHead.copy(latestHead);
-  hasNeutral = true;
+  const source = activeHeadSource();
+  const neutral = neutralHeadBySource[source];
+  neutral.quaternion.copy(latestHead);
+  neutral.has = true;
   onboardingFinishState.textContent = '正面校准完成。现在自然转头，确认角色方向是否一致。';
-  showToast('校准完成，现在的姿势已设为正面');
+  showToast(source === 'phone' ? '校准完成，已把当前手机姿势设为正面' : '校准完成，现在的姿势已设为正面');
 };
 
 const applyBackground = () => {
@@ -1004,13 +1063,17 @@ document.getElementById('setup-obs')!.addEventListener('click', async event => {
   if (!modelCanAnimate) { status.textContent = '请先加载角色并等待画面准备好'; return; }
   button.disabled = true;
   const password = input.value; input.value = '';
-  enterBroadcast();
+  // 只有本次才进入的直播模式，才在配置失败时退出：不能把原本就在直播的用户踢出去。
+  const wasAlreadyBroadcasting = document.body.classList.contains('broadcast-mode');
+  if (!wasAlreadyBroadcasting) enterBroadcast();
   try { const result = await configureObs(password); status.textContent = result; showToast('OBS 场景已创建，请在 OBS 中预览'); }
-  catch (error) { exitBroadcast(); status.textContent = error instanceof Error ? error.message : 'OBS 配置失败'; }
+  catch (error) { if (!wasAlreadyBroadcasting) exitBroadcast(); status.textContent = error instanceof Error ? error.message : 'OBS 配置失败'; }
   finally { button.disabled = false; }
 });
 let backgroundBeforeBroadcast: Background | null = null;
 const enterBroadcast = () => {
+  // 幂等：重复进入不能覆盖进入前的背景，否则退出后无法恢复。
+  if (document.body.classList.contains('broadcast-mode')) return;
   document.body.classList.add('broadcast-mode');
   cameraPreview.hidden = true;
   broadcastButton.textContent = '退出直播画面';
@@ -1430,21 +1493,47 @@ const animate = () => {
     lastVideoTime = cameraPreview.currentTime;
     lastInferenceAt = now;
     try {
-      processDetection(faceLandmarker.detectForVideo(cameraPreview, now));
+      const inferenceStart = performance.now();
+      const detection = faceLandmarker.detectForVideo(cameraPreview, now);
+      inferenceHealth?.observe(performance.now() - inferenceStart);
+      processDetection(detection);
     } catch (error) {
-      console.error('动捕帧处理失败', error);
-      addDiagnosticEvent('tracking-frame-error', error);
-      stopCamera();
-      try { faceLandmarker?.close(); } catch { /* Failed detector may already be closed. */ }
-      faceLandmarker = null;
-      detectorPromise = null;
-      cameraStatus.textContent = '动捕处理失败，摄像头已安全关闭';
-      setTrackingState('error', '动捕发生错误，请重启摄像头');
+      inferenceHealth?.observeError();
+      // 首次失败不直接关摄像头：1 秒后自动重试一次，仍失败才走完整关闭流程。
+      if (!detectionRetryTimer) {
+        console.error('动捕帧处理失败', error);
+        addDiagnosticEvent('tracking-frame-error', error);
+        cameraStatus.textContent = '动捕出现一次异常，1 秒后自动重试…';
+        setTrackingState('error', '动捕出现一次异常，正在自动重试…');
+        detectionRetryTimer = window.setTimeout(() => {
+          detectionRetryTimer = 0;
+          let retryOk = false;
+          try {
+            if (faceLandmarker && cameraStream && cameraPreview.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+              processDetection(faceLandmarker.detectForVideo(cameraPreview, performance.now()));
+            }
+            // 期间用户已关闭摄像头：视为已处理，不再打扰。
+            retryOk = true;
+          } catch (retryError) {
+            console.error('动捕重试失败', retryError);
+            addDiagnosticEvent('tracking-frame-retry-error', retryError);
+          }
+          if (!retryOk) {
+            stopCamera();
+            try { faceLandmarker?.close(); } catch { /* Failed detector may already be closed. */ }
+            faceLandmarker = null;
+            detectorPromise = null;
+            cameraStatus.textContent = '动捕处理失败，摄像头已安全关闭';
+            setTrackingState('error', '动捕发生错误，请重启摄像头');
+          }
+        }, 1000);
+      }
     }
   }
   if (faceVisible && now - lastDetectionAt > 500) {
     faceVisible = false;
-    if (hasNeutral) latestHead.copy(neutralHead);
+    const lostNeutral = neutralHeadBySource[activeHeadSource()];
+    if (lostNeutral.has) latestHead.copy(lostNeutral.quaternion);
     detectedFrames = 0;
     lastFpsAt = now;
     setTrackingQuality();
@@ -1462,7 +1551,7 @@ const animate = () => {
     detectedFrames = 0;
     lastFpsAt = now;
   }
-  bodyTracking.tick(cameraPreview, now, Boolean(cameraStream));
+  bodyTracking.tick(cameraPreview, now, Boolean(cameraStream), phoneIsActive());
   applyMotion(delta);
   studio.apply();
   studio.quality(now, settings.renderQuality === 'auto', bodyTracking.active());

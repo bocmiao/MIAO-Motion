@@ -7,6 +7,8 @@ export function createNativeFrame(renderer: WebGLRenderer, scene: Scene, camera:
   target.texture.colorSpace = SRGBColorSpace;
   const rgba = new Uint8Array(width * height * 4), bgr = new Uint8Array(width * height * 3);
   const originalColor = new Color();
+  // 该 target 专用于原生输出，但 viewport 会被每帧改写：保存并恢复，避免复用时踩坑。
+  const originalViewport = target.viewport.clone();
   return {
     async capture(green: boolean) {
       const previous = renderer.getRenderTarget(), alpha = renderer.getClearAlpha();
@@ -26,6 +28,7 @@ export function createNativeFrame(renderer: WebGLRenderer, scene: Scene, camera:
       } finally {
         renderer.setRenderTarget(previous);
         renderer.setClearColor(originalColor, alpha);
+        target.viewport.copy(originalViewport);
       }
       await pending;
       // WebGL rows start at the bottom; Softcam expects top-down BGR.

@@ -1,6 +1,7 @@
 export type StoredModel = { id: string; name: string; type: string; data: Blob; size: number; updatedAt: number; thumbnail?: string };
 export type StoredProfile = { id: string; name: string; modelId: string; settings: ReturnType<typeof import('./app-utils.mjs').createSettingsProfile>['settings']; updatedAt: number };
 export function openAppDatabase(): Promise<IDBDatabase>;
+export function safeRandomId(): string;
 export function listStoredModels(): Promise<StoredModel[]>;
 export function getStoredModel(id: string): Promise<StoredModel | undefined>;
 export function putStoredModel(file: File, id?: string): Promise<StoredModel>;
