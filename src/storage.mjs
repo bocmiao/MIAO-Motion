@@ -1,6 +1,17 @@
 const DATABASE_NAME = 'miao-motion';
 const DATABASE_VERSION = 4;
 
+/**
+ * 非安全上下文（如 http 局域网访问）下 crypto.randomUUID 不可用，降级为时间+随机串。
+ * 碰撞概率对本地模型库足够低，且调用方会按 sourceName/size/lastModified 去重。
+ */
+export function safeRandomId() {
+  try {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  } catch { /* 某些受限环境访问 crypto 会抛错，直接走降级 */ }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`;
+}
+
 export function openAppDatabase() {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DATABASE_NAME, DATABASE_VERSION);
@@ -80,7 +91,7 @@ export async function putStoredModel(file, id) {
       const request = store.getAll();
       request.onsuccess = () => {
         const previous = request.result.find(model => id ? model.id === id : model.sourceName === file.name && model.size === file.size && model.lastModified === file.lastModified);
-        const model = { ...previous, id: previous?.id ?? id ?? crypto.randomUUID(), name: previous?.name ?? file.name, sourceName: file.name, lastModified: file.lastModified, type: file.type || 'model/vrm', data: file, size: file.size, updatedAt: Date.now(), thumbnail: previous?.thumbnail ?? '' };
+        const model = { ...previous, id: previous?.id ?? id ?? safeRandomId(), name: previous?.name ?? file.name, sourceName: file.name, lastModified: file.lastModified, type: file.type || 'model/vrm', data: file, size: file.size, updatedAt: Date.now(), thumbnail: previous?.thumbnail ?? '' };
         store.put(model);
         resolve(model);
       };

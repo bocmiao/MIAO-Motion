@@ -20,7 +20,7 @@ test('every cat part and bounded recipe generates a valid skinned VRM with resum
     assert.ok(doc.extensions.VRMC_vrm.expressions.preset.blinkLeft);
     for (const [key, choice] of Object.entries(recipe.parts)) assert.equal(doc.nodes.find(n => n.name === `miao_part_${key}_${choice}`).scale[0], 1);
   }
-  assert.throws(() => normalizeCharacter({ version: 2 }), /更新/);
+  assert.throws(() => normalizeCharacter({ version: 3 }), /更新/);
   assert.throws(() => normalizeCharacter({ baseId: 'future-human' }), /保留/);
   assert.equal(normalizeCharacter({ proportions: { head: Infinity, width: -1 } }).proportions.width, 0.8);
 });
@@ -32,4 +32,19 @@ test('VRoid labels hide identifiers and whole-body preference survives export/im
   const settings = parseSettings('{"bodyTracking":true}');
   assert.equal(parseSettingsProfile(JSON.stringify(createSettingsProfile(settings))).bodyTracking, true);
   assert.equal(parseSettings('{"bodyTracking":"true"}').bodyTracking, false);
+});
+
+test('v1 recipe upgrades to v2 with defaults; future versions throw', () => {
+  const upgraded = normalizeCharacter({ version: 1, parts: { ears: 'round' } });
+  assert.equal(upgraded.version, 2);
+  assert.equal(upgraded.parts.ears, 'round');
+  assert.equal(upgraded.face.nose.bridgeWidth, 1);
+  assert.equal(upgraded.face.cheeks.fullness, 1);
+  assert.equal(upgraded.face.chin.width, 1);
+  assert.equal(upgraded.face.ears.size, 1);
+  assert.equal(upgraded.body.height, 1);
+  assert.equal(upgraded.body.shoulderWidth, 1);
+  assert.equal(upgraded.body.waistWidth, 1);
+  assert.equal(upgraded.body.hipWidth, 1);
+  assert.throws(() => normalizeCharacter({ version: 3 }), /更新版本/);
 });

@@ -407,3 +407,8 @@ html:has(body.broadcast-mode) { background: transparent; }
 #creator-preview .local-badge { white-space: nowrap; }
 #creator-preview .stage-toolbar { padding: 12px 16px; }
 @media (max-width: 700px) { .creator-header h2 { font-size: 21px; } .creator-header > button { flex-shrink: 0; font-size: 13px; padding: 10px; } .creator-workspace { grid-template-rows: minmax(195px, 42%) minmax(0, 1fr); } .creator-footer .compact-actions { gap: 6px; } }
+
+/* trait pack 部件缩略图条：有外链部件包时创建器动态生成 */
+.trait-thumbs { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+.trait-thumb { width: 56px; height: 56px; object-fit: cover; border-radius: 8px; border: 2px solid transparent; cursor: pointer; }
+.trait-thumb.selected { border-color: #ff8c42; }
